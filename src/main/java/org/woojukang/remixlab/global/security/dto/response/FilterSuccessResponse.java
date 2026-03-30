@@ -1,0 +1,7 @@
+package org.woojukang.remixlab.global.security.dto.response;
+
+public record FilterSuccessResponse(boolean success,
+                                    String method,
+                                    String message,
+                                    String time) {
+}

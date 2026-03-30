@@ -1,0 +1,57 @@
+spring:
+  config:
+    activate:
+      on-profile: common-prod
+  datasource:
+    url: ${MYSQL_URL}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${MYSQL_USERNAME}
+    password: ${MYSQL_PASSWORD}
+
+  servlet:
+    multipart:
+      max-file-size: 25GB
+      max-request-size: 25GB
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        default_batch_fetch_size: 500
+    open-in-view: false
+  cloud:
+    gcp:
+      storage:
+        project-id: ${GCP_PROJECT_ID} # JSON Key 파일에 있는 project-id
+        bucket: ${GCP_BUCKET} # Cloud storage 콘솔에 존재하는 버킷이름
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+    disable-swagger-default-url: true
+    display-request-duration: true
+  packages-to-scan: org.woojukang.remixlab
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
+
+jwt:
+  secret: ${JWT_SECRET}
+
+openai:
+  api:
+    key: ${OPENAI_API_KEY}
+  model:
+    plot: gpt-4 # gpt-4
+    photo: gpt-image-1 # gpt-image-1
+    video: sora-2 # sora-2
+  url:
+    gpt: https://api.openai.com/v1/responses
+    dalle: https://api.openai.com/v1/images/generations
+    sora2: https://api.openai.com/v1/videos
+    soraStatus: https://api.openai.com/v1/videos/{id}
+    soraDownload: https://api.openai.com/v1/videos/
+
