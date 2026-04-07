@@ -27,12 +27,12 @@ public class RefreshController {
     public ResponseEntity<ApiResult<ReissueResponse>> reissue(HttpServletRequest request,
                                                               HttpServletResponse response){
 
-        ReissueResponse reissueResponse = refreshService.refreshCookies(request);
-
-        System.out.println("Refresh status: " + reissueResponse.status());
+        ReissueResponse reissueResponse = refreshService
+                .refreshCookies(request);
 
         return switch (reissueResponse.status()) {
             case "REFRESH_EXISTS" -> {
+
                 response
                         .setHeader("access",
                                 reissueResponse
