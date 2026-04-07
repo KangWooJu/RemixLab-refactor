@@ -6,6 +6,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.woojukang.remixlab.global.config.exception.BaseExceptionEnum;
+import org.woojukang.remixlab.global.config.exception.domain.BaseException;
 import org.woojukang.remixlab.global.security.dto.response.ReissueResponse;
 import org.woojukang.remixlab.global.security.repository.RefreshRepository;
 import org.woojukang.remixlab.global.security.util.CookieUtil;
@@ -22,6 +24,7 @@ public class RefreshService {
     private final CookieUtil cookieUtil;
 
 
+    // refresh 토큰 기반으로 access , refresh 토큰을 재갱신하는 메소드
     public ReissueResponse refreshCookies(HttpServletRequest request) {
 
         String refresh = cookieUtil.findCookie(request);
@@ -128,8 +131,8 @@ public class RefreshService {
 
     public void validateAlreadyLogin(String username){
 
-        if(refreshRepository.findByKey(username) !=null){
-
-        }
+       if(!refreshRepository.exists(username)){
+           throw new BaseException(BaseExceptionEnum.USER_ALREADY_LOGIN);
+       }
     }
 }
