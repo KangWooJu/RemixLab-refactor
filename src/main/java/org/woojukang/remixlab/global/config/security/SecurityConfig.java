@@ -20,6 +20,7 @@ import org.woojukang.remixlab.global.security.filter.JwtFilter;
 import org.woojukang.remixlab.global.security.filter.JwtLogoutFilter;
 import org.woojukang.remixlab.global.security.filter.LoginFilter;
 import org.woojukang.remixlab.global.security.service.RefreshService;
+import org.woojukang.remixlab.global.security.util.CookieUtil;
 import org.woojukang.remixlab.global.security.util.JwtUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Collections;
@@ -35,6 +36,7 @@ public class SecurityConfig {
     private final ObjectMapper objectMapper;
     private final JwtUtil jwtUtil;
     private final RefreshService refreshService;
+    private final CookieUtil cookieUtil;
 
 
     @Bean
@@ -48,7 +50,7 @@ public class SecurityConfig {
 
     @Bean
     public JwtLogoutFilter jwtlogoutFilter(){
-        return new JwtLogoutFilter(jwtUtil,refreshService);
+        return new JwtLogoutFilter(jwtUtil,refreshService,cookieUtil);
     }
 
     @Bean
