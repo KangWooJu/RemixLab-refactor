@@ -2,11 +2,17 @@ spring:
   config:
     activate:
       on-profile: common-local
+
   datasource:
     url: ${MYSQL_URL}
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: ${MYSQL_USERNAME}
     password: ${MYSQL_PASSWORD}
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
   servlet:
     multipart:
