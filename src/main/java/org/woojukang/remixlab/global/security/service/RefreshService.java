@@ -3,18 +3,13 @@ package org.woojukang.remixlab.global.security.service;
 import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.woojukang.remixlab.global.security.dto.response.ReissueResponse;
-import org.woojukang.remixlab.global.security.entity.Refresh;
 import org.woojukang.remixlab.global.security.repository.RefreshRepository;
+import org.woojukang.remixlab.global.security.util.CookieUtil;
 import org.woojukang.remixlab.global.security.util.JwtUtil;
-
-import java.time.Duration;
 import java.time.LocalDateTime;
 
 @Service
@@ -24,31 +19,12 @@ public class RefreshService {
 
     private final JwtUtil jwtUtil;
     private final RefreshRepository refreshRepository;
-
-    public String findCookie(HttpServletRequest request) {
-
-        String refresh = null;
-        Cookie[] cookies = request.getCookies();
-        if (cookies != null) {
-            for (Cookie cookie : cookies) {
-                if ("refreshToken".equals(cookie.getName())) {
-                    refresh = cookie.getValue();
-                }
-            }
-        }
-
-        log.info("refresh cookie:{}",refresh);
+    private final CookieUtil cookieUtil;
 
 
-
-        return refresh;
-
-    }
-
-    @Transactional
     public ReissueResponse refreshCookies(HttpServletRequest request) {
 
-        String refresh = findCookie(request);
+        String refresh = cookieUtil.findCookie(request);
         if (refresh == null) {
             return new ReissueResponse("REFRESH_NULL", "Refresh NULL " +
                     "[ Time : " + LocalDateTime.now() +
@@ -71,67 +47,89 @@ public class RefreshService {
         // reissueRefresh : 새로운 refresh토큰을 생성하는 메소
     }
 
+    // access 토큰을 초기화 하는 메소드
     private String resetAccessToken(HttpServletRequest request) {
 
-        String refresh = findCookie(request);
+        String refresh = cookieUtil.findCookie(request);
         String username = jwtUtil.getUsername(refresh);
         String role = jwtUtil.getRole(refresh);
 
-        return jwtUtil.createJwt("access", username, role, 600000L);
+        return jwtUtil.createJwt("access",
+                username,
+                role,
+                600000*6*24L);
 
     }
 
-
+    // Refresh 토큰을 갱신하는 메소드
     public String reissueRefresh(HttpServletRequest request) {
 
-        String refresh = findCookie(request);
+        String refresh = cookieUtil.findCookie(request);
         String username = jwtUtil.getUsername(refresh);
-        String role = jwtUtil.getRole(refresh);
 
-        String newRefresh = jwtUtil.createJwt("refresh", username, role, 86400000L);
-        refreshRepository.deleteByRefresh(refresh);
+        String newRefresh = jwtUtil
+                .createJwt("refresh",
+                        username,
+                        jwtUtil.getRole(refresh),
+                        7*600000*6*24L);
 
-        addRefresh(username, newRefresh, 86400000L);
+        // 기존의 refresh 토큰 삭제
+        deleteRefresh(refresh);
+        // 새로운 refresh 토큰 추가
+        addRefresh(username, newRefresh, 7*600000*6*24L);
+
         return newRefresh;
     }
 
+    // 쿠키를 생성하는 로직
     public Cookie createCookie(String key, String value) {
 
-        Cookie cookie = new Cookie(key, value);
-        cookie.setMaxAge(24 * 60 * 60);
-        cookie.setHttpOnly(true);
-
-        return cookie;
+        return cookieUtil
+                .createCookie(key,value);
     }
-
 
     // 서버에 refresh 토큰을 저장하는 메소드
     public void addRefresh(String username, String refresh, Long expiredMs) {
 
-        LocalDateTime localDateTime = LocalDateTime.now().plus(Duration.ofMillis(expiredMs));
+        // username 기반으로 저장
+        refreshRepository
+                .save(username,
+                        refresh,
+                        expiredMs);
 
-        Refresh refreshToken = Refresh.builder()
-                .username(username)
-                .refresh(refresh)
-                .expiration(localDateTime.toString())
-                .build();
-
-        refreshRepository.save(refreshToken);
+        // refresh 기반으로 저장
+        refreshRepository
+                .save(refresh,
+                        username,
+                        expiredMs);
     }
 
-    public void zeroCookie(HttpServletResponse response){
-
-        Cookie cookie = new Cookie("refresh",null);
-        cookie.setMaxAge(0);
-        cookie.setPath("/");
-
-        response.addCookie(cookie);
-        response.setStatus(HttpStatus.OK.value());
-
-    }
-
-    @Transactional
+    // 서버에서 refresh 토큰을 삭제
     public void deleteRefresh(String refresh){
-        refreshRepository.deleteByRefresh(refresh);
+
+        String username = getValue(refresh).toString();
+
+        // refresh 기반의 value 삭제
+        refreshRepository
+                .delete(refresh);
+
+        // username 기반의 value 삭제
+        refreshRepository
+                .delete(username);
+
+    }
+
+    public Object getValue(String key){
+
+        return refreshRepository
+                .findByKey(key);
+    }
+
+
+    public void validateAlreadyLogin(String username){
+
+        if(refreshRepository.findByKey(username) !=null){
+
+        }
     }
 }
