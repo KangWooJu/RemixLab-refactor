@@ -59,6 +59,9 @@ public class LoginFilter extends UsernamePasswordAuthenticationFilter {
 
             String username = loginRequest.username();
 
+            // 중복 로그인 체크
+            refreshService.validateAlreadyLogin(username);
+
             UsernamePasswordAuthenticationToken token =
                     new UsernamePasswordAuthenticationToken(username,
                             loginRequest.password());
