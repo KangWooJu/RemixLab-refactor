@@ -57,8 +57,10 @@ public class LoginFilter extends UsernamePasswordAuthenticationFilter {
             LoginRequest loginRequest =
                     objectMapper.readValue(inputStream, LoginRequest.class);
 
+            String username = loginRequest.username();
+
             UsernamePasswordAuthenticationToken token =
-                    new UsernamePasswordAuthenticationToken(loginRequest.username(),
+                    new UsernamePasswordAuthenticationToken(username,
                             loginRequest.password());
 
             return authenticationManager.authenticate(token);
@@ -84,14 +86,18 @@ public class LoginFilter extends UsernamePasswordAuthenticationFilter {
 
         String role = grantedAuthority.getAuthority();
 
-        String access = jwtUtil.createJwt("access",username,role,600000*6*24L);
-        String refresh = jwtUtil.createJwt("refresh",username,role,8640000L);
+        String access = jwtUtil
+                .createJwt("access",username,role,600000*6*24L); // 하루
 
-        refreshService.addRefresh(username,refresh,86400000L);
+        String refresh = jwtUtil
+                .createJwt("refresh",username,role,7*600000*6*24L); // 1주일
+
+        refreshService.addRefresh(username,refresh,7*600000*6*24L);
 
         response.setHeader("accessToken",access);
         response.addCookie(refreshService.createCookie("refreshToken",refresh));
         response.setStatus(HttpStatus.OK.value());
+
         log.info("[ 로그인 성공 ] TIME : {} , USER : {} ", LocalDateTime.now(),username);
     }
 
