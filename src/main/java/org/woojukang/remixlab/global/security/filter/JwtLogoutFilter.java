@@ -12,6 +12,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.woojukang.remixlab.global.security.dto.response.FilterErrorResponse;
 import org.woojukang.remixlab.global.security.dto.response.FilterSuccessResponse;
 import org.woojukang.remixlab.global.security.service.RefreshService;
+import org.woojukang.remixlab.global.security.util.CookieUtil;
 import org.woojukang.remixlab.global.security.util.JwtUtil;
 import org.woojukang.remixlab.global.utils.app.JsonResponseUtils;
 
@@ -25,6 +26,7 @@ public class JwtLogoutFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final RefreshService refreshService;
+    private final CookieUtil cookieUtil;
 
 
     @Override
@@ -43,8 +45,8 @@ public class JwtLogoutFilter extends OncePerRequestFilter {
                 ,request.getRequestURI()
                 , LocalDateTime.now());
 
-        String refresh = refreshService.findCookie(request);
-        log.info("[ Refresh Token ] : " + refresh);
+        String refresh = cookieUtil.findCookie(request);
+        log.info("[ Refresh Token ] : {}", refresh);
 
         // Refresh토큰에 오류가 있는지 검사
         if(checkRefresh(refresh).error()){
@@ -56,7 +58,8 @@ public class JwtLogoutFilter extends OncePerRequestFilter {
         // Refresh 삭제하기
         refreshService.deleteRefresh(refresh);
         // Cookie를 빈 쿠키로 설정하기
-        refreshService.zeroCookie(response);
+        response.addCookie(cookieUtil.zeroCookie(response));
+
         // 로그아웃 성공 Response반환
         JsonResponseUtils.writeJsonResponse(HttpStatus.OK,
                 response,
@@ -71,11 +74,9 @@ public class JwtLogoutFilter extends OncePerRequestFilter {
     // 2rd. Refresh토큰을 검사
     private FilterErrorResponse checkRefresh(String refresh){
 
-        Predicate<String> checkNull = StringParam
-                -> StringUtils.isBlank(StringParam); // NULL 체크하기
+        Predicate<String> checkNull = StringUtils::isBlank; // NULL 체크하기
 
-        Predicate<String> checkExpiration = StringParam
-                -> jwtUtil.isExpired(StringParam); // Expiration 여부 확인하기
+        Predicate<String> checkExpiration = jwtUtil::isExpired; // Expiration 여부 확인하기
 
         Predicate<String> checkCategory = StringParam
                 -> !"refresh".equals(jwtUtil.getCategory(StringParam)); // 카테고리 일치여부 확인하기
@@ -84,10 +85,7 @@ public class JwtLogoutFilter extends OncePerRequestFilter {
         String strCheckExpiration = "" + checkExpiration.test(refresh);
         String strCheckCategory = "" + checkCategory.test(refresh);
 
-        log.info("Method : POST , "+
-                "Refresh NULL : " + strCheckNull + " ,"
-                +"Expiration : " + strCheckExpiration + " ,"
-                +"Category : " + strCheckCategory);
+        log.info("Method : POST , Refresh NULL : {} ,Expiration : {} ,Category : {}", strCheckNull, strCheckExpiration, strCheckCategory);
 
         boolean result = (checkNull.test(refresh)
                 &&checkCategory.test(refresh)
