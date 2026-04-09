@@ -112,6 +112,11 @@ public class RefreshService {
 
         String username = getValue(refresh).toString();
 
+        // 로그아웃 상태 확인
+        if(username == null){
+            return;
+        }
+
         // refresh 기반의 value 삭제
         refreshRepository
                 .delete(refresh);
