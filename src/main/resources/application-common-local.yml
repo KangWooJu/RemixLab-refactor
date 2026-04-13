@@ -2,11 +2,17 @@ spring:
   config:
     activate:
       on-profile: common-local
+
   datasource:
     url: ${MYSQL_URL}
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: ${MYSQL_USERNAME}
     password: ${MYSQL_PASSWORD}
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
   servlet:
     multipart:
@@ -23,7 +29,7 @@ spring:
     gcp:
       storage:
         credentials:
-          location: classpath:project-f87a0070-bf80-49b8-892-0f3beee0f214.json
+          location: classpath:project-f87a0070-bf80-49b8-892-6a82a3f4c4c2.json
         project-id: ${GCP_PROJECT_ID} # JSON Key 파일에 있는 project-id
         bucket: ${GCP_BUCKET} # Cloud storage 콘솔에 존재하는 버킷이름
 

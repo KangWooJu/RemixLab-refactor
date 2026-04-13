@@ -1,14 +1,54 @@
 package org.woojukang.remixlab.global.security.repository;
 
-import org.springframework.data.jpa.repository.JpaRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Repository;
-import org.woojukang.remixlab.global.security.entity.Refresh;
+import org.woojukang.remixlab.global.config.exception.BaseExceptionEnum;
+import org.woojukang.remixlab.global.config.exception.domain.BaseException;
 
-import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 @Repository
-public interface RefreshRepository extends JpaRepository<Refresh,Long> {
+@RequiredArgsConstructor
+public class RefreshRepository {
 
-    Optional<Refresh> deleteByRefresh(String refresh);
-    Boolean existsByRefresh(String refresh);
+    private final RedisTemplate<String,String> redisTemplate;
+
+    // 저장
+    public void save(String key,
+                     String value,
+                     Long expiredMs){
+
+        redisTemplate
+                .opsForValue()
+                .set(key,
+                        value,
+                        expiredMs,
+                        TimeUnit.MILLISECONDS);
+
+    }
+
+    // 조회
+    public Object findByKey(String key){
+
+        Object value = redisTemplate
+                .opsForValue()
+                .get(key);
+
+        if(value == null){
+            throw new BaseException(BaseExceptionEnum.REFRESH_TOKEN_NOT_FOUND);
+        }
+
+        return value;
+    }
+
+    // 삭제
+    public void delete(String key){
+        redisTemplate
+                .delete(key);
+    }
+
+    public boolean exists(String key){
+        return redisTemplate.hasKey(key);
+    }
 }
