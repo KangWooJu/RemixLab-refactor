@@ -76,6 +76,9 @@ dependencies {
     /* RDBMS */
     runtimeOnly 'com.mysql:mysql-connector-j'
 
+    /* H2 Database ( Test ) */
+    runtimeOnly 'com.h2database:h2'
+
     /* Database */
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
