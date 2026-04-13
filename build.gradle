@@ -40,10 +40,12 @@ dependencies {
      */
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
     /* Observability
+     */
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
-     */
+
 
     /*  GCP Storage
      */
@@ -120,4 +122,8 @@ clean {
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+springBoot{
+    buildInfo()
 }

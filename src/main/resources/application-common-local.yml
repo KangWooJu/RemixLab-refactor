@@ -63,3 +63,14 @@ openai:
     soraStatus: https://api.openai.com/v1/videos/{id}
     soraDownload: https://api.openai.com/v1/videos/
 
+management:
+  server:
+    port: 9292
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,info,loggers,prometheus
+  endpoint:
+    health:
+      show-details: always
+
