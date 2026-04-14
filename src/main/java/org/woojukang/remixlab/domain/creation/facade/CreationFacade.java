@@ -1,5 +1,6 @@
 package org.woojukang.remixlab.domain.creation.facade;
 
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Component;
@@ -30,6 +31,7 @@ import org.woojukang.remixlab.domain.video.service.VideoService;
 import org.woojukang.remixlab.global.client.ai.dto.request.AiClientRequest;
 import org.woojukang.remixlab.global.client.ai.dto.request.prompt.template.InitPromptTemplate;
 import org.woojukang.remixlab.global.client.ai.dto.response.video.SoraResponse;
+import org.woojukang.remixlab.global.metrics.PhotoGenerationMetrics;
 import org.woojukang.remixlab.query.creation.dto.request.ShowPlotWithDetailRequest;
 import org.woojukang.remixlab.query.creation.dto.response.ShowMyCreationResponse;
 import org.woojukang.remixlab.query.creation.dto.response.ShowPlotWithDetailResponse;
@@ -55,6 +57,7 @@ public class CreationFacade {
 
     private final QuestFacade questFacade;
 
+    private final PhotoGenerationMetrics photoGenerationMetrics;
 
     /* plot 생성기
     */
@@ -139,41 +142,47 @@ public class CreationFacade {
     (InitPhotoRequest initPhotoRequest,
      String username) {
 
-        // 프롬프트 결합후 , request DTO 생성
-        AiClientRequest aiClientRequest =
-                new AiClientRequest(String.format(
-                        InitPromptTemplate
-                                .INIT_IMAGE_PROMPT_MAKING
-                                .getTemplate()
-                                .replace("{user_input}",
-                                        creationService.requestToString(initPhotoRequest))));
+        // 사진 생성 전용 메트릭 시작
+        Timer.Sample sample = photoGenerationMetrics.start();
 
-        // 사진 생성을 위한 프롬프트 생성기 실행 ( gpt API )
-        InitPhotoResponse initPhotoResponse =
-                creationService.initPhotos(aiClientRequest);
+        try {
+            // 프롬프트 결합후 , request DTO 생성
+            AiClientRequest aiClientRequest =
+                    new AiClientRequest(String.format(
+                            InitPromptTemplate
+                                    .INIT_IMAGE_PROMPT_MAKING
+                                    .getTemplate()
+                                    .replace("{user_input}",
+                                            creationService.requestToString(initPhotoRequest))));
 
-        // 사진 생성 프롬프트로 사진 생성하기 ( gpt API )
-        InitPhotoRenderResponse initPhotoRenderResponse =  creationService
-                .initPhotoRender(InitPhotoRenderRequest
-                        .from(initPhotoResponse));
+            // 사진 생성을 위한 프롬프트 생성기 실행 ( gpt API )
+            InitPhotoResponse initPhotoResponse =
+                    creationService.initPhotos(aiClientRequest);
 
-
-        // plot으로부터 creation 호출
-        Creation creation = plotQueryService
-                .findCreationByPlot(plotQueryService
-                .findByTitle(initPhotoRequest.title()).getId());
-
-        // creation 호출 후 , Photo 객체 생성후 저장하기
-        List<Photo> photoList = photoService
-                .savePhotos(creation,
-                        initPhotoRenderResponse,
-                        initPhotoRequest);
-
-        // response 생성하기
-        InitPhotoResultResponse initPhotoResultResponse = photoService.makeResult(photoList);
+            // 사진 생성 프롬프트로 사진 생성하기 ( gpt API )
+            InitPhotoRenderResponse initPhotoRenderResponse = creationService
+                    .initPhotoRender(InitPhotoRenderRequest
+                            .from(initPhotoResponse));
 
 
-        return initPhotoResultResponse;
+            // plot으로부터 creation 호출
+            Creation creation = plotQueryService
+                    .findCreationByPlot(plotQueryService
+                            .findByTitle(initPhotoRequest.title()).getId());
+
+            // creation 호출 후 , Photo 객체 생성후 저장하기
+            List<Photo> photoList = photoService
+                    .savePhotos(creation,
+                            initPhotoRenderResponse,
+                            initPhotoRequest);
+
+            // response 생성하기
+            return photoService.makeResult(photoList);
+
+        } finally {
+            photoGenerationMetrics.stop(sample);
+        }
+
     }
 
 
