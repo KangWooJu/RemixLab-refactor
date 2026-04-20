@@ -25,6 +25,8 @@ import org.woojukang.remixlab.global.client.ai.dto.response.video.SoraResponse;
 import org.woojukang.remixlab.global.config.exception.BaseExceptionEnum;
 import org.woojukang.remixlab.global.config.exception.domain.BaseException;
 import org.woojukang.remixlab.query.creation.dto.response.ShowPlotWithDetailResponse;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -41,22 +43,21 @@ public class AiUtils {
     private String soraModel;
 
     // LLM API의 결과를 String 타입으로 변환
-    public String getJsonText(String model,
-                               AiClientRequest request) {
+    public Mono<String> getJsonText(String model,
+                                    AiClientRequest request) {
 
-        GptResponse gptResponse = gptClient.sendMessage(
-                new GptRequest(model, request.prompt())
-        );
-
-        return gptResponse.output()
-                .stream()
-                .findFirst()
-                .orElseThrow(() -> new BaseException(BaseExceptionEnum.LLM_API_RESPONSE_NOT_FOUND))
-                .content()
-                .stream()
-                .findFirst()
-                .orElseThrow(() -> new BaseException(BaseExceptionEnum.LLM_API_RESPONSE_NOT_FOUND))
-                .text();
+        return gptClient.sendMessage(
+                        new GptRequest(model, request.prompt())
+                )
+                .map(gptResponse -> gptResponse.output()
+                        .stream()
+                        .findFirst()
+                        .orElseThrow()
+                        .content()
+                        .stream()
+                        .findFirst()
+                        .orElseThrow()
+                        .text());
     }
 
 
@@ -72,61 +73,58 @@ public class AiUtils {
         }
     }
 
-
     // DALLE API을 병렬 호출 ( 5회 )
-    @Async("dalleExecutor")
-    public CompletableFuture<InitPhotoRenderResponse> makePhotos
-            (InitPhotoRenderRequest request){
+    public Mono<InitPhotoRenderResponse> makePhotos(
+            InitPhotoRenderRequest request) {
 
-        List<CompletableFuture<InitPhotoRenderResponse.Images>> futures =
-                request.imagePrompts()
-                        .stream()
-                        .map(detail -> CompletableFuture.supplyAsync(()->{
+        return Flux.fromIterable(request.imagePrompts())
 
-                            DALLERequest dalleRequest = new DALLERequest(
-                                    "gpt-image-1",
-                                    detail.prompt(),
-                                    "1024x1024"
+                .flatMap(detail -> {
+
+                    DALLERequest dalleRequest = new DALLERequest(
+                            "gpt-image-1",
+                            detail.prompt(),
+                            "1024x1024"
+                    );
+
+                    return gptClient.makeImage(dalleRequest)
+                            .map(dalleResponse ->
+                                    new InitPhotoRenderResponse.Images(
+                                            String.valueOf(detail.sceneNumber()),
+                                            dalleResponse.data().get(0).b64_json()
+                                    )
                             );
+                })
 
-                            DALLEResponse dalleResponse = gptClient.makeImage(dalleRequest);
+                // 여기서 모든 결과 모음 (CompletableFuture.allOf 역할)
+                .collectList()
 
-                            return new InitPhotoRenderResponse.Images(
-                                    String.valueOf(detail.sceneNumber()),
-                                    dalleResponse.data().get(0).b64_json()
-                            );
-
-                        })).toList();
-
-        return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
-                .thenApply(v->futures.stream()
-                        .map(CompletableFuture::join)
-                        .toList())
-                .thenApply(InitPhotoRenderResponse::new);
-
+                // List<Images> → InitPhotoRenderResponse
+                .map(InitPhotoRenderResponse::new);
     }
 
-    public DirectPhotoResponse makePhotoFromText(DirectPhotoRequest request){
+
+    public Mono<DirectPhotoResponse> makePhotoFromText(DirectPhotoRequest request){
 
         DALLERequest dalleRequest = new DALLERequest(
                 "gpt-image-1",
-                request.prompt(),  // 텍스트 입력
+                request.prompt(),
                 "auto"
         );
 
-        DALLEResponse dalleResponse = gptClient.makeImage(dalleRequest);
+        return gptClient.makeImage(dalleRequest)
+                .map(dalleResponse -> {
 
-        // 한 개만 나오므로 data.get(0) 접근
-        String base64Image = dalleResponse
-                .data()
-                .get(0)
-                .b64_json();
+                    String base64Image = dalleResponse
+                            .data()
+                            .get(0)
+                            .b64_json();
 
-        return new DirectPhotoResponse(base64Image);
-
+                    return new DirectPhotoResponse(base64Image);
+                });
     }
 
-    public SoraResponse makeVideoFromPhotos(ShowPlotWithDetailResponse showPlotWithDetailResponse){
+    public Mono<SoraResponse> makeVideoFromPhotos(ShowPlotWithDetailResponse showPlotWithDetailResponse){
 
 
         String json;
@@ -151,7 +149,7 @@ public class AiUtils {
 
     }
 
-    public SoraResponse makeVideoByText(DirectVideoRequest directVideoRequest){
+    public Mono<SoraResponse> makeVideoByText(DirectVideoRequest directVideoRequest){
 
         SoraRequest soraRequest = new SoraRequest(soraModel,
                 directVideoRequest.prompt(),

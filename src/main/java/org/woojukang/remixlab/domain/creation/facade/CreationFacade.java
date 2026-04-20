@@ -38,6 +38,7 @@ import org.woojukang.remixlab.query.creation.dto.response.ShowPlotWithDetailResp
 import org.woojukang.remixlab.query.creation.service.CreationQueryService;
 import org.woojukang.remixlab.query.creation.service.PlotQueryService;
 import org.woojukang.remixlab.query.user.service.UserQueryService;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 
@@ -59,11 +60,37 @@ public class CreationFacade {
 
     private final PhotoGenerationMetrics photoGenerationMetrics;
 
+    /*
+    WebFlux Block 메소드
+     */
+
+    @Transactional
+    public InitPlotResultResponse makePlot(String username,InitPlotRequest initPlotRequest){
+        return makePlotReactive(username,initPlotRequest)
+                .block();
+    }
+
+    @Transactional
+    public InitPhotoResultResponse makePhotos
+            (InitPhotoRequest initPhotoRequest,
+             String username) {
+
+        return makePhotosReactive(initPhotoRequest,username)
+                .block();
+    }
+
+    @Transactional
+    public DirectPhotoResultResponse makePhotoDirectly
+            (DirectPhotoRequest directPhotoRequest,
+             String username){
+
+        return makePhotoDirectlyReactive(directPhotoRequest,username).block();
+    }
+
     /* plot 생성기
     */
 
-    @Transactional
-    public InitPlotResultResponse makePlot
+    public Mono<InitPlotResultResponse> makePlotReactive
     (String username,
      InitPlotRequest initPlotRequest){
 
@@ -82,112 +109,103 @@ public class CreationFacade {
                         .findByUsername(username),
                         initPlotRequest);
 
-        // plot 생성하기
-        InitPlotResponse initPlotResponse = creationService
-                .initPlot(aiClientRequest);
+        return creationService.initPlot(aiClientRequest)
 
+                .map(initPlotResponse -> {
 
-        // plot 저장하기
-        plotService
-                .savePlot(creation,
-                        initPlotResponse);
+                    plotService.savePlot(creation, initPlotResponse);
 
-        // 퀘스트 여부 확인하기
-        questFacade.onPlotCreated(username);
+                    questFacade.onPlotCreated(username);
 
-        // response 응답 생성하기
-        return InitPlotResultResponse.from(creation.getId(),initPlotResponse);
+                    return InitPlotResultResponse.from(
+                            creation.getId(),
+                            initPlotResponse
+                    );
+                });
     }
+
 
     /* photo 생성기
     */
 
-    @Transactional
-    public DirectPhotoResultResponse makePhotoDirectly
-            (DirectPhotoRequest directPhotoRequest,
-             String username){
+    // Text 기반 사진 생성
+    public Mono<DirectPhotoResultResponse> makePhotoDirectlyReactive(
+            DirectPhotoRequest directPhotoRequest,
+            String username){
 
-        // 프롬프트 결합 후 , requestDTO 생성
         AiClientRequest aiClientRequest =
                 new AiClientRequest(directPhotoRequest.prompt());
 
-        // 사진 생성기 실행 ( 렌더링 X )
-        DirectPhotoResponse directPhotoResponse =
-                creationService.makePhotoFromText(directPhotoRequest);
+        return creationService.makePhotoFromText(directPhotoRequest)
 
-        // User 가져오기
-        User user = userQueryService
-                .findByUsername(username);
+                .map(directPhotoResponse -> {
 
-        // creation 생성후 , photo 생성하기
-        Creation creation = creationService
-                .makeCreationDirect(user,
-                        aiClientRequest);
+                    User user = userQueryService
+                            .findByUsername(username);
 
-        // photo 객체 저장 및 response 생성
-        DirectPhotoResultResponse directPhotoResultResponse =
-                photoService
-                        .saveDirectPhoto(creation,
-                                directPhotoResponse);
+                    Creation creation = creationService
+                            .makeCreationDirect(user, aiClientRequest);
 
-        // 퀘스트 체크
-        questFacade.onPhotoCreated(username);
+                    DirectPhotoResultResponse result =
+                            photoService.saveDirectPhoto(
+                                    creation,
+                                    directPhotoResponse
+                            );
 
-        return directPhotoResultResponse;
+                    questFacade.onPhotoCreated(username);
+
+                    return result;
+                });
     }
 
 
-    @Transactional
-    public InitPhotoResultResponse makePhotos
-    (InitPhotoRequest initPhotoRequest,
-     String username) {
+    // Plot 기반 사진 생성
+    public Mono<InitPhotoResultResponse> makePhotosReactive(
+            InitPhotoRequest initPhotoRequest,
+            String username) {
 
-        // 사진 생성 전용 메트릭 시작
         Timer.Sample sample = photoGenerationMetrics.start();
 
-        try {
-            // 프롬프트 결합후 , request DTO 생성
-            AiClientRequest aiClientRequest =
-                    new AiClientRequest(String.format(
-                            InitPromptTemplate
-                                    .INIT_IMAGE_PROMPT_MAKING
-                                    .getTemplate()
-                                    .replace("{user_input}",
-                                            creationService.requestToString(initPhotoRequest))));
+        AiClientRequest aiClientRequest =
+                new AiClientRequest(String.format(
+                        InitPromptTemplate
+                                .INIT_IMAGE_PROMPT_MAKING
+                                .getTemplate()
+                                .replace("{user_input}",
+                                        creationService.requestToString(initPhotoRequest))
+                ));
 
-            // 사진 생성을 위한 프롬프트 생성기 실행 ( gpt API )
-            InitPhotoResponse initPhotoResponse =
-                    creationService.initPhotos(aiClientRequest);
+        return creationService.initPhotos(aiClientRequest)
+                .flatMap(initPhotoResponse ->
+                        creationService.initPhotoRender(
+                                InitPhotoRenderRequest.from(initPhotoResponse)
+                        )
+                )
+                .map(initPhotoRenderResponse -> {
 
-            // 사진 생성 프롬프트로 사진 생성하기 ( gpt API )
-            InitPhotoRenderResponse initPhotoRenderResponse = creationService
-                    .initPhotoRender(InitPhotoRenderRequest
-                            .from(initPhotoResponse));
+                    Creation creation = plotQueryService
+                            .findCreationByPlot(
+                                    plotQueryService
+                                            .findByTitle(initPhotoRequest.title())
+                                            .getId()
+                            );
 
+                    List<Photo> photoList = photoService
+                            .savePhotos(creation,
+                                    initPhotoRenderResponse,
+                                    initPhotoRequest);
 
-            // plot으로부터 creation 호출
-            Creation creation = plotQueryService
-                    .findCreationByPlot(plotQueryService
-                            .findByTitle(initPhotoRequest.title()).getId());
+                    photoGenerationMetrics.success(); // throughput 증가
 
-            // creation 호출 후 , Photo 객체 생성후 저장하기
-            List<Photo> photoList = photoService
-                    .savePhotos(creation,
-                            initPhotoRenderResponse,
-                            initPhotoRequest);
-
-            // response 생성하기
-            return photoService.makeResult(photoList);
-
-        } finally {
-            photoGenerationMetrics.stop(sample);
-        }
-
+                    return photoService.makeResult(photoList);
+                })
+                .doOnError(e -> photoGenerationMetrics.fail()) //  실패 throughput
+                .doFinally(signal -> photoGenerationMetrics.stop(sample));
     }
 
 
-
-    /* Video 생성하기
+    /*
+    Video 생성하기
      */
 
     @Transactional

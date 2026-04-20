@@ -2,6 +2,7 @@ package org.woojukang.remixlab.global.client.ai;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
@@ -14,6 +15,7 @@ import org.woojukang.remixlab.global.client.ai.dto.response.photo.DALLEResponse;
 import org.woojukang.remixlab.global.client.ai.dto.response.plot.GptResponse;
 import org.woojukang.remixlab.global.client.ai.dto.response.video.SoraResponse;
 import org.woojukang.remixlab.global.client.ai.dto.response.video.SoraStatusResponse;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Component
@@ -77,12 +79,12 @@ public class GptClient implements AiClient {
                 .bodyToMono(SoraStatusResponse.class);
     }
 
-    public Mono<byte[]> getVideo(String videoId){
+    public Flux<DataBuffer> getVideoStream(String videoId){
 
         return openAIWebClient.get()
                 .uri(soraDownloadUrl + videoId + "/content")
                 .retrieve()
-                .bodyToMono(byte[].class);
+                .bodyToFlux(DataBuffer.class);
     }
 
 

@@ -10,6 +10,8 @@ import org.woojukang.remixlab.domain.video.entity.Video;
 import org.woojukang.remixlab.domain.video.entity.VideoStatus;
 import org.woojukang.remixlab.domain.video.service.VideoService;
 import org.woojukang.remixlab.query.creation.service.VideoQueryService;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.Objects;
 
@@ -36,20 +38,31 @@ public class VideoFacade {
     public ShowVideoResponse getShowVideo
             (ShowVideoRequest showVideoRequest){
 
+        return getShowVideoReactive(showVideoRequest)
+                .block();
+
+    }
+
+    @Transactional
+    public Mono<ShowVideoResponse> getShowVideoReactive(
+            ShowVideoRequest showVideoRequest){
+
         Video video = videoQueryService
-                .findByCreationId(showVideoRequest
-                        .creationId());
+                .findByCreationId(showVideoRequest.creationId());
 
-        // 요청해서 byte 코드로 가져오기 -> stream 변환후 GCS 저장 , URL 반환
-        String url = videoService
-                .uploadVideo(videoService.
-                        getVideoUrl(video
-                                .getSoraVideoId()));
+        return videoService
+                .getVideoUrl(video.getSoraVideoId())
+                .as(videoService::uploadVideo)
+                .flatMap(url ->
+                        Mono.fromCallable(() -> {
 
-        video.updateUrl(url);
-        videoService.saveVideo(video);
+                            video.updateUrl(url);
+                            videoService.saveVideo(video);
 
-        return new ShowVideoResponse(url);
+                            return url;
 
+                        }).subscribeOn(Schedulers.boundedElastic()) // blocking 메소드는 boundedElastic()처리
+                )
+                .map(ShowVideoResponse::new);
     }
 }

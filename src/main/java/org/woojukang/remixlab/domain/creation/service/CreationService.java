@@ -23,6 +23,7 @@ import org.woojukang.remixlab.global.client.ai.dto.response.video.SoraResponse;
 import org.woojukang.remixlab.global.utils.ai.AiUtils;
 import org.woojukang.remixlab.global.utils.creation.CreationUtils;
 import org.woojukang.remixlab.query.creation.dto.response.ShowPlotWithDetailResponse;
+import reactor.core.publisher.Mono;
 
 @Service
 @RequiredArgsConstructor
@@ -80,14 +81,11 @@ public class CreationService {
 
 
 
-    public InitPlotResponse initPlot(AiClientRequest aiClientRequest){
-        // Gpt API 호출
-       return aiUtils
-               .responseParsing(aiUtils
-                                .getJsonText(plotModel,
-                                        aiClientRequest),
-                        InitPlotResponse.class);
+    public Mono<InitPlotResponse> initPlot(AiClientRequest aiClientRequest){
 
+        return aiUtils
+                .getJsonText(plotModel, aiClientRequest)
+                .map(json -> aiUtils.responseParsing(json, InitPlotResponse.class));
     }
 
 
@@ -96,28 +94,24 @@ public class CreationService {
      */
 
     // 사진 렌더링에 맞는 형태로 변환하기
-    public InitPhotoResponse initPhotos
-    (AiClientRequest aiClientRequest){
+    public Mono<InitPhotoResponse> initPhotos(AiClientRequest aiClientRequest){
 
         return aiUtils
-                .responseParsing(aiUtils
-                                .getJsonText(plotModel,
-                                        aiClientRequest),
-                        InitPhotoResponse.class);
-
+                .getJsonText(plotModel, aiClientRequest)
+                .map(json -> aiUtils.responseParsing(json, InitPhotoResponse.class));
     }
 
     // 가공 프롬프트 -> 사진 생성하기
-    public InitPhotoRenderResponse initPhotoRender
-            (InitPhotoRenderRequest request){
-        return aiUtils
-                .makePhotos(request)
-                .join();
+    public Mono<InitPhotoRenderResponse> initPhotoRender(
+            InitPhotoRenderRequest request){
+
+        return aiUtils.makePhotos(request);
     }
 
-    public DirectPhotoResponse makePhotoFromText(DirectPhotoRequest directPhotoRequest){
-        return aiUtils
-                .makePhotoFromText(directPhotoRequest);
+    public Mono<DirectPhotoResponse> makePhotoFromText(
+            DirectPhotoRequest directPhotoRequest){
+
+        return aiUtils.makePhotoFromText(directPhotoRequest);
     }
 
 
@@ -127,15 +121,15 @@ public class CreationService {
 
     public SoraResponse makeVideoByPhotos(ShowPlotWithDetailResponse showPlotWithDetailResponse){
         return aiUtils
-                .makeVideoFromPhotos(showPlotWithDetailResponse);
+                .makeVideoFromPhotos(showPlotWithDetailResponse)
+                .block();
     }
 
     public SoraResponse makeVideoByText(DirectVideoRequest directVideoRequest){
         return aiUtils
-                .makeVideoByText(directVideoRequest);
+                .makeVideoByText(directVideoRequest)
+                .block();
     }
-
-
 
 
 
