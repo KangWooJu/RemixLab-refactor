@@ -16,6 +16,10 @@ public class GptConfig {
     public WebClient openAIWebClient() {
         return WebClient.builder()
                 .defaultHeader("Authorization", "Bearer " + apiKey)
+                .codecs(configurer ->
+                        configurer.defaultCodecs()
+                                .maxInMemorySize(10 * 1024 * 1024) // 10MB
+                )
                 .build();
     }
 
