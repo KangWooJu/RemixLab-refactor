@@ -39,6 +39,7 @@ import org.woojukang.remixlab.query.creation.service.CreationQueryService;
 import org.woojukang.remixlab.query.creation.service.PlotQueryService;
 import org.woojukang.remixlab.query.user.service.UserQueryService;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
 
@@ -59,6 +60,8 @@ public class CreationFacade {
     private final QuestFacade questFacade;
 
     private final PhotoGenerationMetrics photoGenerationMetrics;
+
+    private final CreationPersistenceFacade creationPersistenceFacade;
 
     /*
     WebFlux Block 메소드
@@ -117,36 +120,28 @@ public class CreationFacade {
     // Text 기반 사진 생성
     public Mono<DirectPhotoResultResponse> makePhotoDirectlyReactive(
             DirectPhotoRequest directPhotoRequest,
-            String username){
+            String username) {
 
         AiClientRequest aiClientRequest =
                 new AiClientRequest(directPhotoRequest.prompt());
 
         return creationService.makePhotoFromText(directPhotoRequest)
-
-                .map(directPhotoResponse -> {
-
-                    User user = userQueryService
-                            .findByUsername(username);
-
-                    Creation creation = creationService
-                            .makeCreationDirect(user, aiClientRequest);
-
-                    DirectPhotoResultResponse result =
-                            photoService.saveDirectPhoto(
-                                    creation,
-                                    directPhotoResponse
-                            );
-
-                    questFacade.onPhotoCreated(username);
-
-                    return result;
-                });
+                .flatMap(directPhotoResponse ->
+                        Mono.fromCallable(() ->
+                                        creationPersistenceFacade.saveDirectPhotoBlocking(
+                                                directPhotoResponse,
+                                                username,
+                                                aiClientRequest
+                                        )
+                                )
+                                .subscribeOn(Schedulers.boundedElastic())
+                );
     }
 
 
+
+
     // Plot 기반 사진 생성
-    @Transactional
     public Mono<InitPhotoResultResponse> makePhotosReactive(
             InitPhotoRequest initPhotoRequest,
             String username) {
@@ -154,13 +149,16 @@ public class CreationFacade {
         Timer.Sample sample = photoGenerationMetrics.start();
 
         AiClientRequest aiClientRequest =
-                new AiClientRequest(String.format(
-                        InitPromptTemplate
-                                .INIT_IMAGE_PROMPT_MAKING
-                                .getTemplate()
-                                .replace("{user_input}",
-                                        creationService.requestToString(initPhotoRequest))
-                ));
+                new AiClientRequest(
+                        String.format(
+                                InitPromptTemplate.INIT_IMAGE_PROMPT_MAKING
+                                        .getTemplate()
+                                        .replace(
+                                                "{user_input}",
+                                                creationService.requestToString(initPhotoRequest)
+                                        )
+                        )
+                );
 
         return creationService.initPhotos(aiClientRequest)
                 .flatMap(initPhotoResponse ->
@@ -168,25 +166,17 @@ public class CreationFacade {
                                 InitPhotoRenderRequest.from(initPhotoResponse)
                         )
                 )
-                .map(initPhotoRenderResponse -> {
-
-                    Creation creation = plotQueryService
-                            .findCreationByPlot(
-                                    plotQueryService
-                                            .findByTitle(initPhotoRequest.title())
-                                            .getId()
-                            );
-
-                    List<Photo> photoList = photoService
-                            .savePhotos(creation,
-                                    initPhotoRenderResponse,
-                                    initPhotoRequest);
-
-                    photoGenerationMetrics.success(); // throughput 증가
-
-                    return photoService.makeResult(photoList);
-                })
-                .doOnError(e -> photoGenerationMetrics.fail()) //  실패 throughput
+                .flatMap(initPhotoRenderResponse ->
+                        Mono.fromCallable(() ->
+                                        creationPersistenceFacade.saveInitPhotosBlocking(
+                                                initPhotoRenderResponse,
+                                                initPhotoRequest
+                                        )
+                                )
+                                .subscribeOn(Schedulers.boundedElastic())
+                )
+                .doOnSuccess(result -> photoGenerationMetrics.success())
+                .doOnError(e -> photoGenerationMetrics.fail())
                 .doFinally(signal -> photoGenerationMetrics.stop(sample));
     }
 
