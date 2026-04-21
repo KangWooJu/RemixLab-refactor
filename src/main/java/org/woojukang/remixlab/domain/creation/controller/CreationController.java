@@ -20,6 +20,7 @@ import org.woojukang.remixlab.domain.creation.dto.response.plot.InitPlotResultRe
 import org.woojukang.remixlab.domain.creation.facade.CreationFacade;
 import org.woojukang.remixlab.global.config.exception.dto.ApiResult;
 import org.woojukang.remixlab.query.creation.dto.response.ShowMyCreationResponse;
+import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping("/api/v1/creation")
@@ -51,16 +52,17 @@ public class CreationController {
     @PostMapping("/make/photo")
     @Operation(summary = "AI 사진 생성",
             description = "AI를 통해 사진을 생성합니다. 이때 , 플룻을 기반으로 생성합니다. \n /make/plot API의 호출 결과에서 creationId를 제외한 나머지를 그대로 requestBody에 넣어주시면 됩니다." )
-    public ResponseEntity<ApiResult<InitPhotoResultResponse>> makePhoto
+    public Mono<ResponseEntity<ApiResult<InitPhotoResultResponse>>> makePhoto
             (@RequestBody InitPhotoRequest initPhotoRequest,
              @AuthenticationPrincipal UserDetails userDetails){
 
-        return ResponseEntity
-                .status(HttpStatus
-                        .CREATED)
-                .body(ApiResult
-                        .success(creationFacade
-                                .makePhotos(initPhotoRequest,userDetails.getUsername())));
+        return creationFacade
+                .makePhotosReactive(initPhotoRequest,
+                        userDetails.getUsername())
+                .map(result
+                        -> ResponseEntity
+                        .status(HttpStatus.CREATED)
+                        .body(ApiResult.success(result)));
 
     }
 
@@ -68,18 +70,16 @@ public class CreationController {
     @PostMapping("/text/make/photo")
     @Operation(summary = "텍스트로 AI 사진생성",
             description = "AI를 통해 사진을 생성합니다. 이때 , 사용자의 입력을 기반으로 생성합니다.")
-    public ResponseEntity<ApiResult<DirectPhotoResultResponse>> makePhotoByText
+    public Mono<ResponseEntity<ApiResult<DirectPhotoResultResponse>>> makePhotoByText
             (@RequestBody DirectPhotoRequest directPhotoRequest,
              @AuthenticationPrincipal UserDetails userDetails) {
 
-        return ResponseEntity
-                .status(HttpStatus
-                        .CREATED)
-                .body(ApiResult
-                        .success(creationFacade
-                                .makePhotoDirectly(directPhotoRequest,
-                                        userDetails
-                                                .getUsername())));
+        return creationFacade
+                .makePhotoDirectlyReactive(directPhotoRequest, userDetails.getUsername())
+                .map(result ->
+                        ResponseEntity
+                                .status(HttpStatus.CREATED)
+                                .body(ApiResult.success(result)));
 
     }
 

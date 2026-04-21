@@ -70,22 +70,8 @@ public class CreationFacade {
                 .block();
     }
 
-    @Transactional
-    public InitPhotoResultResponse makePhotos
-            (InitPhotoRequest initPhotoRequest,
-             String username) {
 
-        return makePhotosReactive(initPhotoRequest,username)
-                .block();
-    }
 
-    @Transactional
-    public DirectPhotoResultResponse makePhotoDirectly
-            (DirectPhotoRequest directPhotoRequest,
-             String username){
-
-        return makePhotoDirectlyReactive(directPhotoRequest,username).block();
-    }
 
     /* plot 생성기
     */
@@ -160,6 +146,7 @@ public class CreationFacade {
 
 
     // Plot 기반 사진 생성
+    @Transactional
     public Mono<InitPhotoResultResponse> makePhotosReactive(
             InitPhotoRequest initPhotoRequest,
             String username) {
