@@ -13,7 +13,6 @@ import org.woojukang.remixlab.query.user.repository.UserQueryRepository;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class UserQueryService {
 
     private final UserQueryRepository userQueryRepository;
