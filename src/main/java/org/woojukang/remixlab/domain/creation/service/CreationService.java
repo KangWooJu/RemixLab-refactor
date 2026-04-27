@@ -119,16 +119,13 @@ public class CreationService {
     VIDEO 생성 메소드
      */
 
-    public SoraResponse makeVideoByPhotos(ShowPlotWithDetailResponse showPlotWithDetailResponse){
-        return aiUtils
-                .makeVideoFromPhotos(showPlotWithDetailResponse)
-                .block();
+    public Mono<SoraResponse> makeVideoByPhotosReactive(ShowPlotWithDetailResponse showPlotWithDetailResponse){
+        return aiUtils.makeVideoFromPhotos(showPlotWithDetailResponse);
     }
 
-    public SoraResponse makeVideoByText(DirectVideoRequest directVideoRequest){
+    public Mono<SoraResponse> makeVideoByTextReactive(DirectVideoRequest directVideoRequest){
         return aiUtils
-                .makeVideoByText(directVideoRequest)
-                .block();
+                .makeVideoByText(directVideoRequest);
     }
 
 
