@@ -3,6 +3,7 @@ package org.woojukang.remixlab.domain.creation.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -26,6 +27,7 @@ import reactor.core.publisher.Mono;
 @RequestMapping("/api/v1/creation")
 @RequiredArgsConstructor
 @Tag(name = "생성 API",description = "생성 관련 API")
+@Slf4j
 public class CreationController {
 
     private final CreationFacade creationFacade;
@@ -34,18 +36,15 @@ public class CreationController {
     @PostMapping("/make/plot")
     @Operation(summary = "AI 플롯 생성",
             description = "AI를 통해 이야기 플롯을 생성합니다.")
-    public ResponseEntity<ApiResult<InitPlotResultResponse>> makePlot
+    public Mono<ResponseEntity<ApiResult<InitPlotResultResponse>>> makePlot
             (@RequestBody InitPlotRequest initPlotRequest,
              @AuthenticationPrincipal UserDetails userDetails){
 
-        return ResponseEntity
-                .status(HttpStatus
-                        .CREATED)
-                .body(ApiResult
-                        .success(creationFacade
-                                .makePlot(userDetails
-                                                .getUsername(),
-                                        initPlotRequest)));
+        log.info("makePlot entered, principal={}", userDetails);
+        return creationFacade.makePlotReactive(userDetails.getUsername(), initPlotRequest)
+                .map(result ->
+                        ResponseEntity.status(HttpStatus.CREATED)
+                                .body(ApiResult.success(result)));
     }
 
     // AI 사진 생성 API
@@ -87,34 +86,31 @@ public class CreationController {
     @PostMapping("/make/video")
     @Operation(summary = "비디오 생성기",
             description = "사용자가 선택한 사진을 기반으로 비디오를 생성합니다.\n이때 , 생성된 비디오의 url은 생성하지 않으며 비디오 생성을 요청만합니다. ")
-    public ResponseEntity<ApiResult<InitVideoResponse>> makeVideo
+    public Mono<ResponseEntity<ApiResult<InitVideoResponse>>> makeVideo
     (@RequestBody InitVideoRequest initVideoRequest,
      @AuthenticationPrincipal UserDetails userDetails){
 
-        return ResponseEntity
-                .status(HttpStatus
-                        .CREATED)
-                .body(ApiResult
-                        .success(creationFacade
-                                .makeVideoByPhotos(initVideoRequest,
-                                        userDetails.getUsername())));
+        return creationFacade
+                .makeVideoByPhotosReactive(initVideoRequest, userDetails.getUsername())
+                .map(result -> ResponseEntity
+                        .status(HttpStatus.CREATED)
+                        .body(ApiResult
+                                .success(result)));
     }
 
     @PostMapping("/text/make/video")
     @Operation(summary = "비디오 생성기",
             description = "텍스트 기반으로 비디오를 생성합니다.\n이때 , 생성된 비디오의 url은 생성하지 않으며 비디오 생성을 요청만합니다.")
-    public ResponseEntity<ApiResult<InitVideoResponse>> makeVideoByText
+    public Mono<ResponseEntity<ApiResult<InitVideoResponse>>> makeVideoByText
             (@RequestBody DirectVideoRequest directVideoRequest,
              @AuthenticationPrincipal UserDetails userDetails){
 
-        return ResponseEntity
-                .status(HttpStatus
-                        .CREATED)
-                .body(ApiResult
-                        .success(creationFacade
-                                .makeVideoByText(userDetails
-                                        .getUsername(),
-                                        directVideoRequest)));
+        return creationFacade.
+                makeVideoByTextReactive(userDetails.getUsername(),directVideoRequest)
+                .map(result -> ResponseEntity
+                        .status(HttpStatus.CREATED)
+                        .body(ApiResult
+                                .success(result)));
     }
 
 
