@@ -4,14 +4,18 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.woojukang.remixlab.domain.creation.dto.request.pipeline.InitPhotoRequest;
+import org.woojukang.remixlab.domain.creation.dto.request.pipeline.InitPlotRequest;
 import org.woojukang.remixlab.domain.creation.dto.response.direct.DirectPhotoResponse;
 import org.woojukang.remixlab.domain.creation.dto.response.photo.DirectPhotoResultResponse;
 import org.woojukang.remixlab.domain.creation.dto.response.photo.InitPhotoResultResponse;
 import org.woojukang.remixlab.domain.creation.dto.response.pipeline.InitPhotoRenderResponse;
+import org.woojukang.remixlab.domain.creation.dto.response.pipeline.InitPlotResponse;
+import org.woojukang.remixlab.domain.creation.dto.response.plot.InitPlotResultResponse;
 import org.woojukang.remixlab.domain.creation.entity.Creation;
 import org.woojukang.remixlab.domain.creation.service.CreationService;
 import org.woojukang.remixlab.domain.photo.entity.Photo;
 import org.woojukang.remixlab.domain.photo.service.PhotoService;
+import org.woojukang.remixlab.domain.plot.service.PlotService;
 import org.woojukang.remixlab.domain.quest.facade.QuestFacade;
 import org.woojukang.remixlab.domain.user.entity.User;
 import org.woojukang.remixlab.global.client.ai.dto.request.AiClientRequest;
@@ -32,8 +36,27 @@ public class CreationPersistenceFacade {
 
     private final CreationService creationService;
     private final PhotoService photoService;
+    private final PlotService plotService;
 
     private final QuestFacade questFacade;
+
+    @Transactional
+
+    public InitPlotResultResponse savePlotBlocking(
+            String username,
+            InitPlotRequest initPlotRequest,
+            InitPlotResponse initPlotResponse) {
+
+        User user = userQueryService.findByUsername(username);
+        Creation creation = creationService.InitCreation(user, initPlotRequest);
+        plotService.savePlot(creation, initPlotResponse);
+        questFacade.onPlotCreated(username);
+
+        return InitPlotResultResponse.from(
+                creation.getId(),
+                initPlotResponse
+        );
+    }
 
 
 
