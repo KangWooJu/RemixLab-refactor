@@ -6,5 +6,13 @@ public interface AIMetrics {
 
     Timer.Sample start();
 
-    void stop(Timer.Sample sample);
+    void stopTotal(Timer.Sample sample, String flow);
+
+    void stopStage(Timer.Sample sample, String flow, String stage);
+
+    void incrementRequest(String flow, String result);
+
+    void incrementInflight(String flow);
+
+    void decrementInflight(String flow);
 }
