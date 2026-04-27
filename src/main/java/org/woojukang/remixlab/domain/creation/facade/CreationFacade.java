@@ -27,11 +27,13 @@ import org.woojukang.remixlab.domain.plot.service.PlotService;
 import org.woojukang.remixlab.domain.quest.facade.QuestFacade;
 import org.woojukang.remixlab.domain.user.entity.User;
 import org.woojukang.remixlab.domain.video.entity.Video;
+import org.woojukang.remixlab.domain.video.facade.VideoPersistenceFacade;
 import org.woojukang.remixlab.domain.video.service.VideoService;
 import org.woojukang.remixlab.global.client.ai.dto.request.AiClientRequest;
 import org.woojukang.remixlab.global.client.ai.dto.request.prompt.template.InitPromptTemplate;
 import org.woojukang.remixlab.global.client.ai.dto.response.video.SoraResponse;
 import org.woojukang.remixlab.global.metrics.PhotoGenerationMetrics;
+import org.woojukang.remixlab.global.metrics.VideoGenerationMetrics;
 import org.woojukang.remixlab.query.creation.dto.request.ShowPlotWithDetailRequest;
 import org.woojukang.remixlab.query.creation.dto.response.ShowMyCreationResponse;
 import org.woojukang.remixlab.query.creation.dto.response.ShowPlotWithDetailResponse;
@@ -60,20 +62,10 @@ public class CreationFacade {
     private final QuestFacade questFacade;
 
     private final PhotoGenerationMetrics photoGenerationMetrics;
+    private final VideoGenerationMetrics videoGenerationMetrics;
 
     private final CreationPersistenceFacade creationPersistenceFacade;
-
-    /*
-    WebFlux Block 메소드
-     */
-
-    @Transactional
-    public InitPlotResultResponse makePlot(String username,InitPlotRequest initPlotRequest){
-        return makePlotReactive(username,initPlotRequest)
-                .block();
-    }
-
-
+    private final VideoPersistenceFacade videoPersistenceFacade;
 
 
     /* plot 생성기
@@ -92,25 +84,16 @@ public class CreationFacade {
                                 .replace("{user_input}",
                                         initPlotRequest.user_input())));
 
-        // creation 생성 후 , 저장
-        Creation creation = creationService
-                .InitCreation(userQueryService
-                        .findByUsername(username),
-                        initPlotRequest);
-
         return creationService.initPlot(aiClientRequest)
-
-                .map(initPlotResponse -> {
-
-                    plotService.savePlot(creation, initPlotResponse);
-
-                    questFacade.onPlotCreated(username);
-
-                    return InitPlotResultResponse.from(
-                            creation.getId(),
-                            initPlotResponse
-                    );
-                });
+                .flatMap(initPlotResponse ->
+                        Mono.fromCallable(() ->
+                                creationPersistenceFacade.savePlotBlocking(
+                                        username,
+                                        initPlotRequest,
+                                        initPlotResponse
+                                )
+                        ).subscribeOn(Schedulers.boundedElastic())
+                );
     }
 
 
@@ -122,20 +105,48 @@ public class CreationFacade {
             DirectPhotoRequest directPhotoRequest,
             String username) {
 
+        // 플로우 구분 : direct
+        String flow = "direct";
+
+        // 현재 처리 중인 요청 수 증가
+        photoGenerationMetrics.incrementInflight(flow);
+
+        // 전체 요청의 end-to-end latency 측정 시작
+        Timer.Sample totalSample = photoGenerationMetrics.start();
+
         AiClientRequest aiClientRequest =
                 new AiClientRequest(directPhotoRequest.prompt());
 
+        // 텍스트 기반 사진 생성 기능의 호출 latency 측정 시작
+        Timer.Sample generationSample = photoGenerationMetrics.start();
+
+
         return creationService.makePhotoFromText(directPhotoRequest)
-                .flatMap(directPhotoResponse ->
-                        Mono.fromCallable(() ->
-                                        creationPersistenceFacade.saveDirectPhotoBlocking(
-                                                directPhotoResponse,
-                                                username,
-                                                aiClientRequest
-                                        )
-                                )
-                                .subscribeOn(Schedulers.boundedElastic())
-                );
+                // 텍스트 기반 사진 생성 성공 시 , generate 단계의 latency 기록
+                .doOnSuccess(res -> photoGenerationMetrics.stopStage(generationSample, flow, "generate"))
+                .flatMap(directPhotoResponse -> {
+                    Timer.Sample persistenceSample = photoGenerationMetrics.start();
+
+                    return Mono.fromCallable(() ->
+                                    creationPersistenceFacade.saveDirectPhotoBlocking(
+                                            directPhotoResponse,
+                                            username,
+                                            aiClientRequest
+                                    )
+                            )
+                            // blocking 작업에 대해서는 boundedElastic 스레드풀로 분리
+                            .subscribeOn(Schedulers.boundedElastic())
+                            // 저장 성공 시 , persistence 단계 latency 기록
+                            .doOnSuccess(res -> photoGenerationMetrics.stopStage(persistenceSample, flow, "persistence"));
+                })
+                // 전체 요청 성공 건수 증가
+                .doOnSuccess(result -> photoGenerationMetrics.incrementRequest(flow, "success"))
+                // 전체 요청 실패 건수 증가
+                .doOnError(e -> photoGenerationMetrics.incrementRequest(flow, "fail"))
+                .doFinally(signal -> {
+                    photoGenerationMetrics.stopTotal(totalSample, flow); // 전체 end-to-end latency 기록
+                    photoGenerationMetrics.decrementInflight(flow); // 현재 처리 중 요청 수 감소
+                });
     }
 
 
@@ -146,38 +157,63 @@ public class CreationFacade {
             InitPhotoRequest initPhotoRequest,
             String username) {
 
-        Timer.Sample sample = photoGenerationMetrics.start();
+        // 플로우 구분 : plot
+        String flow = "plot";
+
+        // 현재 처리 중인 요청 수 증가
+        photoGenerationMetrics.incrementInflight(flow);
+
+        // 전체 요청의 end-to-end latency 측정 시작
+        Timer.Sample totalSample = photoGenerationMetrics.start();
 
         AiClientRequest aiClientRequest =
                 new AiClientRequest(
-                        String.format(
-                                InitPromptTemplate.INIT_IMAGE_PROMPT_MAKING
-                                        .getTemplate()
-                                        .replace(
-                                                "{user_input}",
-                                                creationService.requestToString(initPhotoRequest)
-                                        )
-                        )
+                        InitPromptTemplate.INIT_IMAGE_PROMPT_MAKING
+                                .getTemplate()
+                                .replace("{user_input}",
+                                        creationService.requestToString(initPhotoRequest))
                 );
 
+        // 이미지 생성용 데이터렌더링 로직 latency 측정 시작
+        Timer.Sample initSample = photoGenerationMetrics.start();
+
+
         return creationService.initPhotos(aiClientRequest)
-                .flatMap(initPhotoResponse ->
-                        creationService.initPhotoRender(
-                                InitPhotoRenderRequest.from(initPhotoResponse)
-                        )
-                )
-                .flatMap(initPhotoRenderResponse ->
-                        Mono.fromCallable(() ->
-                                        creationPersistenceFacade.saveInitPhotosBlocking(
-                                                initPhotoRenderResponse,
-                                                initPhotoRequest
-                                        )
-                                )
-                                .subscribeOn(Schedulers.boundedElastic())
-                )
-                .doOnSuccess(result -> photoGenerationMetrics.success())
-                .doOnError(e -> photoGenerationMetrics.fail())
-                .doFinally(signal -> photoGenerationMetrics.stop(sample));
+                // 렌더링 단계 latency 기록
+                .doOnSuccess(res -> photoGenerationMetrics.stopStage(initSample, flow, "init"))
+                .flatMap(initPhotoResponse -> {
+                    // 이미지로 변환 하는 로직 latency 측정 시작
+                    Timer.Sample renderSample = photoGenerationMetrics.start();
+
+                    return creationService.initPhotoRender(
+                                    InitPhotoRenderRequest.from(initPhotoResponse)
+                            )
+                            // 랜더링 성공 시 latency 기록
+                            .doOnSuccess(res -> photoGenerationMetrics.stopStage(renderSample, flow, "render"));
+                })
+                .flatMap(initPhotoRenderResponse -> {
+                    // persistence 단계 latency 측정 시작
+                    Timer.Sample persistenceSample = photoGenerationMetrics.start();
+
+                    return Mono.fromCallable(() ->
+                                    creationPersistenceFacade.saveInitPhotosBlocking(
+                                            initPhotoRenderResponse,
+                                            initPhotoRequest
+                                    )
+                            )
+                            // JPA 로직은 boundedElastic 스레드 내부에서 처리
+                            .subscribeOn(Schedulers.boundedElastic())
+                            // JPA 로직 성공 시 , persistence 단계 latency 기록
+                            .doOnSuccess(res -> photoGenerationMetrics.stopStage(persistenceSample, flow, "persistence"));
+                })
+                // 전체 성공 건수 증가
+                .doOnSuccess(result -> photoGenerationMetrics.incrementRequest(flow, "success"))
+                .doOnError(e -> photoGenerationMetrics.incrementRequest(flow, "fail"))
+                // 마지막에 항상 전체 latency 기록 및 in-flight 감소
+                .doFinally(signal -> {
+                    photoGenerationMetrics.stopTotal(totalSample, flow);
+                    photoGenerationMetrics.decrementInflight(flow);
+                });
     }
 
 
@@ -185,63 +221,71 @@ public class CreationFacade {
     Video 생성하기
      */
 
-    @Transactional
-    public InitVideoResponse makeVideoByPhotos(InitVideoRequest initVideoRequest,String username){
 
-        // Creation 가져오기
-        Creation creation = creationQueryService
-                .findCreationEntityById(initVideoRequest
-                        .creationId());
+    public Mono<InitVideoResponse> makeVideoByPhotosReactive(
+            InitVideoRequest initVideoRequest,
+            String username) {
+        String flow = "photo_based";
 
-        // plot 정보 가져오기
-        ShowPlotWithDetailResponse showPlotWithDetailResponse =
-                plotQueryService
-                        .findPlotWithDetailsByCreationId(new ShowPlotWithDetailRequest(initVideoRequest
-                                .creationId()));
+        videoGenerationMetrics.incrementInflight(flow);
+        Timer.Sample totalSample = videoGenerationMetrics.start();
 
+        Timer.Sample querySample = videoGenerationMetrics.start();
 
-        // 사진+플롯 정보를 프롬프트로 만든 후 , Video 생성하기
-        SoraResponse soraResponse = creationService
-                .makeVideoByPhotos(showPlotWithDetailResponse);
+        return Mono.fromCallable(() ->
+                        videoPersistenceFacade.findPlotDetailsBlocking(initVideoRequest.creationId())
+                )
+                .subscribeOn(Schedulers.boundedElastic())
+                .doOnSuccess(res -> videoGenerationMetrics.stopStage(querySample, flow, "query_plot"))
 
-        // Video 객체 생성후 저장하기
-        Video video = videoService.saveVideo(creation,soraResponse);
+                .flatMap(showPlotWithDetailResponse -> {
+                    Timer.Sample soraSample = videoGenerationMetrics.start();
 
-        // 퀘스트 체크
-        questFacade.onVideoCreated(username);
+                    return creationService.makeVideoByPhotosReactive(showPlotWithDetailResponse)
+                            .doOnSuccess(res -> videoGenerationMetrics.stopStage(soraSample, flow, "generate_video"));
+                })
 
-        return new InitVideoResponse(video.getId(),
-                soraResponse
-                .id(),
-                "비디오 생성이 접수되었습니다.");
+                .flatMap(soraResponse -> {
+                    Timer.Sample persistenceSample = videoGenerationMetrics.start();
 
+                    return Mono.fromCallable(() ->
+                                    videoPersistenceFacade.saveVideoByPhotosBlocking(
+                                            initVideoRequest,
+                                            username,
+                                            soraResponse
+                                    )
+                            )
+                            .subscribeOn(Schedulers.boundedElastic())
+                            .doOnSuccess(res -> videoGenerationMetrics.stopStage(
+                                    persistenceSample,
+                                    flow,
+                                    "persistence"
+                            ));
+                })
+
+                .doOnSuccess(result -> videoGenerationMetrics.incrementRequest(flow, "success"))
+                .doOnError(e -> videoGenerationMetrics.incrementRequest(flow, "fail"))
+                .doFinally(signal -> {
+                    videoGenerationMetrics.stopTotal(totalSample, flow);
+                    videoGenerationMetrics.decrementInflight(flow);
+                });
     }
 
-    @Transactional
-    public InitVideoResponse makeVideoByText(String username,DirectVideoRequest directVideoRequest){
+    public Mono<InitVideoResponse> makeVideoByTextReactive(
+            String username,
+            DirectVideoRequest directVideoRequest) {
 
-        User user = userQueryService.findByUsername(username);
-
-        SoraResponse soraResponse =  creationService
-                .makeVideoByText(directVideoRequest);
-
-        AiClientRequest aiClientRequest = new AiClientRequest(directVideoRequest.prompt());
-
-        // Creation 생성하기
-        Creation creation = creationService
-                .makeCreationDirect(user,aiClientRequest);
-
-        // Video 객체 생성하기
-        Video video = videoService.saveVideo(creation,soraResponse);
-
-        // 퀘스트 체크
-        questFacade.onVideoCreated(username);
-
-        return new InitVideoResponse(video.getId(),
-                soraResponse
-                .id(),
-                "비디오 생성이 접수되었습니다.");
-
+        return creationService.makeVideoByTextReactive(directVideoRequest)
+                .flatMap(soraResponse ->
+                        Mono.fromCallable(() ->
+                                videoPersistenceFacade.saveVideoByTextBlocking(
+                                        username,
+                                        directVideoRequest,
+                                        new AiClientRequest(directVideoRequest.prompt()),
+                                        soraResponse
+                                )
+                        ).subscribeOn(Schedulers.boundedElastic())
+                );
     }
 
 
