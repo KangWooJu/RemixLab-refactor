@@ -136,7 +136,7 @@ public class RefreshService {
 
     public void validateAlreadyLogin(String username){
 
-       if(!refreshRepository.exists(username)){
+       if(refreshRepository.exists(username)){
            throw new BaseException(BaseExceptionEnum.USER_ALREADY_LOGIN);
        }
     }

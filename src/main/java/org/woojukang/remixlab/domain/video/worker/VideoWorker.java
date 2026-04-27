@@ -30,7 +30,10 @@ public class VideoWorker {
         ).forEach(video -> {
             try {
                 SoraStatusResponse res =
-                        gptClient.getVideoStatus(video.getSoraVideoId());
+                        gptClient
+                                .getVideoStatus(video.getSoraVideoId())
+                                .block(); // Reactive 종료
+
                 updateVideoStatus(video, res);
             } catch (Exception e) {
                 log.error("Video status polling failed. videoId={}", video.getId(), e);

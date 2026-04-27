@@ -3,6 +3,7 @@ package org.woojukang.remixlab.global.config.security;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -72,7 +73,33 @@ public class SecurityConfig {
         return authenticationConfiguration.getAuthenticationManager();
     }
 
+    // API 문서 및 옵저버 툴 관련 설정
     @Bean
+    @Order(1)
+    public SecurityFilterChain apiSecurityFilterChain(HttpSecurity httpSecurity)
+            throws Exception {
+
+        httpSecurity
+                .securityMatcher(
+                        "/actuator/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html",
+                        "/v3/api-docs/**",
+                        "/v3/api-docs",
+                        "/swagger-resources/**",
+                        "/webjars/**",
+                        "/mock/api/**"
+                )
+                .authorizeHttpRequests(auth -> auth
+                        .anyRequest().permitAll()
+                )
+                .csrf(AbstractHttpConfigurer::disable);
+
+        return httpSecurity.build();
+    }
+
+    @Bean
+    @Order(2)
     public SecurityFilterChain securityfilterChain(HttpSecurity httpSecurity,
                                                    LoginFilter loginFilter)
             throws Exception {
@@ -121,15 +148,6 @@ public class SecurityConfig {
         httpSecurity
                 .authorizeHttpRequests((auth)->auth
                         .requestMatchers("/login","/api/v1/user/create").permitAll()
-                        .requestMatchers("/refresh").permitAll()
-                        .requestMatchers(
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/v3/api-docs/**",
-                                "/v3/api-docs",
-                                "/swagger-resources/**",
-                                "/webjars/**"
-                        ).permitAll()
                         .anyRequest().authenticated()
                 );
 

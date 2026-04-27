@@ -2,10 +2,12 @@ package org.woojukang.remixlab.global.client.ai;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 import org.woojukang.remixlab.global.client.ai.dto.request.photo.DALLERequest;
 import org.woojukang.remixlab.global.client.ai.dto.request.plot.GptRequest;
 import org.woojukang.remixlab.global.client.ai.dto.request.video.SoraRequest;
@@ -13,12 +15,14 @@ import org.woojukang.remixlab.global.client.ai.dto.response.photo.DALLEResponse;
 import org.woojukang.remixlab.global.client.ai.dto.response.plot.GptResponse;
 import org.woojukang.remixlab.global.client.ai.dto.response.video.SoraResponse;
 import org.woojukang.remixlab.global.client.ai.dto.response.video.SoraStatusResponse;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @Component
 @RequiredArgsConstructor
 public class GptClient implements AiClient {
 
-    private final RestTemplate openAIRestTemplate;
+    private final WebClient openAIWebClient;
 
     @Value("${openai.url.gpt}")
     private String gptUrl;
@@ -36,51 +40,51 @@ public class GptClient implements AiClient {
     private String soraDownloadUrl;
 
     // 프롬프트 -> 텍스트
-    public GptResponse sendMessage
-    (GptRequest request) {
+    public Mono<GptResponse> sendMessage(GptRequest request) {
 
-        return openAIRestTemplate
-                .postForObject(gptUrl,
-                        request,
-                        GptResponse.class);
+        return openAIWebClient.post()
+                .uri(gptUrl)
+                .bodyValue(request)
+                .retrieve()
+                .bodyToMono(GptResponse.class);
     }
 
     // 프롬프트 -> 사진
-    public DALLEResponse makeImage
-    (DALLERequest request){
+    public Mono<DALLEResponse> makeImage(DALLERequest request){
 
-        return openAIRestTemplate
-                .postForObject(dallEUrl,
-                        request,
-                        DALLEResponse.class);
+        return openAIWebClient.post()
+                .uri(dallEUrl)
+                .bodyValue(request)
+                .retrieve()
+                .bodyToMono(DALLEResponse.class);
     }
 
 
-    public SoraResponse makeVideo
-            (SoraRequest request){
-        return openAIRestTemplate
-                .postForObject(soraUrl,
-                        request,
-                        SoraResponse.class);
+    public Mono<SoraResponse> makeVideo(SoraRequest request){
+
+        return openAIWebClient.post()
+                .uri(soraUrl)
+                .bodyValue(request)
+                .retrieve()
+                .bodyToMono(SoraResponse.class);
     }
 
-    public SoraStatusResponse getVideoStatus
-            (String videoId){
+    public Mono<SoraStatusResponse> getVideoStatus(String videoId){
 
-        return openAIRestTemplate
-                .getForObject(soraStatusUrl,
-                        SoraStatusResponse.class,
-                        videoId);
-
+        return openAIWebClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path(soraStatusUrl)
+                        .build(videoId))
+                .retrieve()
+                .bodyToMono(SoraStatusResponse.class);
     }
 
-    public byte[] getVideo(String videoId){
+    public Flux<DataBuffer> getVideoStream(String videoId){
 
-       return openAIRestTemplate.getForObject(
-               soraDownloadUrl + videoId + "/content",
-               byte[].class
-       );
-
+        return openAIWebClient.get()
+                .uri(soraDownloadUrl + videoId + "/content")
+                .retrieve()
+                .bodyToFlux(DataBuffer.class);
     }
 
 
