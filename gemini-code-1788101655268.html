@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RemixLab Backend Refactoring Engineering Case Study</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700;800&family=Pretendard:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #FFFFFF;
+      --bg-subtle: #F8FAFC;
+      --bg-light-blue: #EFF6FF;
+      --border-color: #CBD5E1;
+      --border-blue: #93C5FD;
+      --primary-blue: #2563EB;
+      --deep-blue: #1E3A8A;
+      --text-main: #0F172A;
+      --text-muted: #64748B;
+      --text-blue: #1D4ED8;
+      --font-main: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: #0B1120;
+      font-family: var(--font-main);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px 0;
+      gap: 40px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    .slide {
+      width: 1920px;
+      height: 1080px;
+      background: var(--bg-primary);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      padding: 46px 70px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+      border-radius: 4px;
+      page-break-after: always;
+      flex-shrink: 0;
+    }
+
+    .slide-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 22px;
+      border-bottom: 2.5px solid var(--border-color);
+      padding-bottom: 14px;
+      flex-shrink: 0;
+    }
+
+    .header-left {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .section-num {
+      font-family: var(--font-mono);
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--primary-blue);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    .section-title {
+      font-size: 36px;
+      font-weight: 900;
+      color: var(--deep-blue);
+      letter-spacing: -0.02em;
+    }
+
+    .slide-meta {
+      font-family: var(--font-mono);
+      font-size: 15px;
+      color: var(--text-muted);
+      text-align: right;
+      line-height: 1.4;
+      font-weight: 600;
+    }
+
+    .slide-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 18px;
+      min-height: 0;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+      flex: 1;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 20px;
+      flex: 1;
+    }
+
+    .card {
+      background: var(--bg-primary);
+      border: 1.5px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .card.highlight {
+      background: var(--bg-light-blue);
+      border-color: var(--border-blue);
+    }
+
+    .card-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--deep-blue);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      letter-spacing: -0.01em;
+    }
+
+    .card-title .badge {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      background: var(--primary-blue);
+      color: white;
+      padding: 4px 10px;
+      border-radius: 5px;
+      font-weight: 700;
+    }
+
+    .card-desc {
+      font-size: 18px;
+      line-height: 1.65;
+      color: #334155;
+      font-weight: 500;
+    }
+
+    .bullet-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .bullet-list li {
+      font-size: 17.5px;
+      line-height: 1.6;
+      color: #334155;
+      position: relative;
+      padding-left: 22px;
+    }
+
+    .bullet-list li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 10px;
+      width: 7px;
+      height: 7px;
+      background-color: var(--primary-blue);
+      border-radius: 50%;
+    }
+
+    .bullet-list li strong {
+      color: var(--deep-blue);
+      font-weight: 800;
+    }
+
+    .code-tag {
+      font-family: var(--font-mono);
+      font-size: 15px;
+      background: #F1F5F9;
+      color: var(--primary-blue);
+      padding: 3px 8px;
+      border-radius: 5px;
+      border: 1px solid #CBD5E1;
+      font-weight: 700;
+    }
+
+    .tech-pill {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      background: white;
+      border: 1.5px solid var(--border-blue);
+      color: var(--primary-blue);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 700;
+      display: inline-block;
+      margin: 2px 3px;
+    }
+
+    .diagram-container {
+      background: var(--bg-subtle);
+      border: 1.5px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .step-flow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .step-node {
+      background: white;
+      border: 1.5px solid var(--border-color);
+      padding: 14px 16px;
+      border-radius: 8px;
+      text-align: center;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .step-node.active {
+      border-color: var(--primary-blue);
+      background: var(--bg-light-blue);
+    }
+
+    .step-node .node-title {
+      font-size: 16.5px;
+      font-weight: 800;
+      color: var(--deep-blue);
+    }
+
+    .step-node .node-sub {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+
+    .arrow-right {
+      color: var(--primary-blue);
+      font-size: 22px;
+      font-weight: 900;
+    }
+
+    .table-custom {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 16px;
+    }
+
+    .table-custom th {
+      background: #F1F5F9;
+      color: var(--deep-blue);
+      text-align: left;
+      padding: 12px 16px;
+      border-bottom: 2px solid var(--border-color);
+      font-weight: 800;
+    }
+
+    .table-custom td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+      color: #334155;
+      line-height: 1.5;
+    }
+
+    .table-custom tr:last-child td {
+      border-bottom: none;
+    }
+
+    .slide-footer {
+      margin-top: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1.5px solid var(--border-color);
+      padding-top: 12px;
+      font-size: 14px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    @media print {
+      body {
+        padding: 0;
+        background: white;
+        gap: 0;
+      }
+      .slide {
+        box-shadow: none;
+        border-radius: 0;
+        margin: 0;
+        page-break-after: always;
+        width: 1920px;
+        height: 1080px;
+      }
+      @page {
+        size: 1920px 1080px;
+        margin: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- SLIDE 01: HERO & PROJECT MOTIVATION (COMBINED & DENSE) -->
+  <section class="slide">
+    <div class="slide-header">
+      <div class="header-left">
+        <span class="section-num">01 / INTRODUCTION</span>
+        <h1 class="section-title">RemixLab — Generative AI Image & Video Platform</h1>
+      </div>
+      <div class="slide-meta">
+        ENGINEERING CASE STUDY<br>BACKEND REFACTORING
+      </div>
+    </div>
+    <div class="slide-content">
+      <div class="grid-2">
+        <!-- LEFT: Project Core Summary -->
+        <div class="card highlight" style="gap: 20px;">
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <div style="display: flex; gap: 8px;">
+              <span class="tech-pill">Generative AI Pipeline</span>
+              <span class="tech-pill">Asynchronous Orchestration</span>
+              <span class="tech-pill">Backend Refactoring</span>
+            </div>
+            <h2 style="font-size: 32px; font-weight: 900; color: var(--deep-blue); line-height: 1.35; margin-top: 6px;">
+              단일 AI API 호출을 넘어,<br>다중 AI 파이프라인 연계 및 비동기 처리 엔지니어링
+            </h2>
+            <p class="card-desc" style="font-size: 18.5px;">
+              사용자의 텍스트 입력을 바탕으로 <strong>이야기 플롯 생성(GPT) → 장면별 이미지 생성(DALL-E) → 사용자 선택 → 최종 비디오 렌더링(Sora)</strong>으로 확장되는 복합 생성형 AI 서비스입니다.
+            </p>
+          </div>
+          <div style="background: white; padding: 20px 24px; border-radius: 10px; border: 2px solid var(--border-blue);">
+            <div style="font-size: 15px; font-weight: 800; color: var(--primary-blue); font-family: var(--font-mono); margin-bottom: 6px;">
+              💡 ENGINEERING MOTIVATION & REFACTORING CONTEXT
+            </div>
+            <div style="font-size: 16.5px; color: #334155; line-height: 1.65;">
+              단순 API 호출이 아니라 <strong>여러 AI 모델의 요청과 응답을 하나의 생성 흐름으로 연결(AI Orchestration)</strong>하고 응답 지연을 제어하는 백엔드를 구현하고자 참여했습니다. 배포 후 발생한 구조적 한계를 해결하기 위해 <strong>독립적인 개인 리팩토링 저장소(RemixLab-refactor)</strong>를 구축하여 개선했습니다.
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: Pipeline Diagram & Repo Meta -->
+        <div style="display: flex; flex-direction: column; gap: 18px;">
+          <div class="card" style="padding: 22px 26px; gap: 16px;">
+            <div class="card-title"><span class="badge">PIPELINE</span> 핵심 생성 오케스트레이션 흐름</div>
+            <div class="step-flow" style="margin: 6px 0;">
+              <div class="step-node"><span class="node-title">User Input</span><span class="node-sub">프롬프트</span></div>
+              <span class="arrow-right">→</span>
+              <div class="step-node active"><span class="node-title">GPT</span><span class="node-sub">스토리/장면</span></div>
+              <span class="arrow-right">→</span>
+              <div class="step-node active"><span class="node-title">DALL-E</span><span class="node-sub">이미지 후보</span></div>
+              <span class="arrow-right">→</span>
+              <div class="step-node"><span class="node-title">Selection</span><span class="node-sub">대표 선택</span></div>
+              <span class="arrow-right">→</span>
+              <div class="step-node active"><span class="node-title">Sora</span><span class="node-sub">비디오 생성</span></div>
+            </div>
+            <p style="font-size: 16px; color: #475569; line-height: 1.55;">
+              각 AI 모델의 입출력을 매끄럽게 연결하고 중간 선택 상태를 영속화하여 클라이언트와 실시간 동기화합니다.
+            </p>
+          </div>
+
+          <div class="card" style="padding: 22px 26px; gap: 14px;">
+            <div class="card-title"><span class="badge">INFO</span> 프로젝트 메타 정보</div>
+            <table class="table-custom">
+              <tr>
+                <th style="width: 28%;">진행 체계</th>
+                <td>4인 팀 프로젝트 (기획/디자인/FE/BE) ➔ <strong>1인 백엔드 독립 리팩토링</strong></td>
+              </tr>
+              <tr>
+                <th>담당 엔지니어</th>
+                <td><strong>강우주 (Backend / Infrastructure 전담)</strong></td>
+              </tr>
+              <tr>
+                <th>GitHub Repo</th>
+                <td><span class="code-tag" style="font-size: 14.5px;">github.com/KangWooJu/RemixLab-refactor</span></td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-footer">
+      <span>REMIXLAB BACKEND REFACTORING CASE STUDY</span>
+      <span>01 / 12</span>
+    </div>
+  </section>
+
+  <!-- SLIDE 02: TEAM R&R & TECH STACK (COMBINED & DENSE) -->
+  <section class="slide">
+    <div class="slide-header">
+      <div class="header-left">
+        <span class="section-num">02 / SPECS & TEAM</span>
+        <h1 class="section-title">Team Structure, Role & Tech Stack</h1>
+      </div>
+      <div class="slide-meta">
+        R&R MATRIX<br>& ECOSYSTEM
+      </div>
+    </div>
+    <div class="slide-content">
+      <div class="grid-2">
+        <!-- LEFT: Team & R&R -->
+        <div class="card" style="gap: 16px;">
+          <div class="card-title"><span class="badge">TEAM</span> 팀 구성 및 R&R 분담</div>
+          <table class="table-custom">
+            <thead>
+              <tr>
+                <th>Role</th>
+                <th>담당자</th>
+                <th>주요 담당 업무</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>PM</td><td>김서령</td><td>서비스 기획, 요구사항 정의, 전체 마일스톤 관리</td></tr>
+              <tr><td>Designer</td><td>김단비</td><td>UI/UX 디자인, 피그마 와이어프레임 및 디자인 시스템</td></tr>
+              <tr><td>Frontend</td><td>조영호</td><td>클라이언트 UI 구현 및 화면별 REST API 연동</td></tr>
+              <tr style="background: var(--bg-light-blue);">
+                <td><strong>Backend / Infra</strong></td>
+                <td><strong>강우주 (본인)</strong></td>
+                <td><strong>아키텍처, AI 파이프라인, DB/인증, 배포 및 인프라 전반</strong></td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="background: var(--bg-subtle); padding: 18px 20px; border-radius: 10px; border: 1.5px solid var(--border-color); margin-top: 4px;">
+            <div style="font-size: 16px; font-weight: 800; color: var(--deep-blue); margin-bottom: 6px;">📌 Backend 1인 전담 핵심 책임 영역</div>
+            <p style="font-size: 15.5px; color: #334155; line-height: 1.6;">
+              RESTful API 설계, MySQL 스키마 & QueryDSL 동적 쿼리 최적화, Spring Security + JWT + Redis 인증 토큰 분리, AI 파이프라인(GPT/DALL-E/Sora) 제어, 비동기 영상 폴링 워커 및 Docker 인프라 배포를 전담하여 주도했습니다.
+            </p>
+          </div>
+        </div>
+
+        <!-- RIGHT: Tech Stack Categorized -->
+        <div class="card highlight" style="gap: 16px;">
+          <div class="card-title"><span class="badge">TECH STACK</span> 기술 스택 분류 및 선정 이유</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+            <div style="background: white; padding: 16px; border-radius: 8px; border: 1.5px solid var(--border-blue);">
+              <strong style="color: var(--deep-blue); font-size: 16px;">Backend Core</strong>
+              <div style="margin-top: 8px;">
+                <span class="tech-pill">Java 17</span>
+                <span class="tech-pill">Spring Boot 3.x</span>
+                <span class="tech-pill">Spring Data JPA</span>
+                <span class="tech-pill">QueryDSL</span>
+              </div>
+            </div>
+            <div style="background: white; padding: 16px; border-radius: 8px; border: 1.5px solid var(--border-blue);">
+              <strong style="color: var(--deep-blue); font-size: 16px;">Reactive & AI Engine</strong>
+              <div style="margin-top: 8px;">
+                <span class="tech-pill">WebClient</span>
+                <span class="tech-pill">Project Reactor</span>
+                <span class="tech-pill">OpenAI GPT / Sora</span>
+                <span class="tech-pill">DALL-E</span>
+              </div>
+            </div>
+            <div style="background: white; padding: 16px; border-radius: 8px; border: 1.5px solid var(--border-blue);">
+              <strong style="color: var(--deep-blue); font-size: 16px;">Data & Storage</strong>
+              <div style="margin-top: 8px;">
+                <span class="tech-pill">MySQL 8.0</span>
+                <span class="tech-pill">Redis (Token TTL)</span>
+                <span class="tech-pill">Google Cloud Storage</span>
+              </div>
+            </div>
+            <div style="background: white; padding: 16px; border-radius: 8px; border: 1.5px solid var(--border-blue);">
+              <strong style="color: var(--deep-blue); font-size: 16px;">Test & Observability</strong>
+              <div style="margin-top: 8px;">
+                <span class="tech-pill">JUnit5 / Mockito</span>
+                <span class="tech-pill">MockMvc</span>
+                <span class="tech-pill">Micrometer</span>
+                <span class="tech-pill">Prometheus</span>
+              </div>
+            </div>
+          </div>
+          <div style="font-size: 15.5px; color: #334155; background: white; padding: 14px 18px; border-radius: 8px; border: 1.5px solid var(--border-blue); line-height: 1.6;">
+            💡 <strong>스택 선정 기준:</strong> 외부 AI I/O 블로킹 최소화, Redis를 통한 토큰 상태 분리, 회귀 버그 방지를 위한 견고한 테스트 안전망 확보에 집중했습니다.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-footer">
+      <span>REMIXLAB BACKEND REFACTORING CASE STUDY</span>
+      <span>02 / 12</span>
+    </div>
+  </section>
+
+  <!-- SLIDE 03: ORIGINAL BOTTLENECKS & REFACTORING TRANSITION -->
+  <section class="slide">
+    <div class="slide-header">
+      <div class="header-left">
+        <span class="section-num">03 / RETROSPECTIVE & TRANSITION</span>
+        <h1 class="section-title">Original Bottlenecks & Why Independent Refactoring?</h1>
+      </div>
+      <div class="slide-meta">
+        EXPERIENCED PROBLEMS<br>& REFACTORING GOALS
+      </div>
+    </div>
+    <div class="slide-content">
+      <div class="grid-3">
+        <!-- Problem 1 -->
+        <div class="card" style="gap: 14px;">
+          <div class="card-title"><span class="badge">PROBLEM 01</span> 일정 산정 및 연동 병목</div>
+          <p class="card-desc"><strong>백엔드 개발 완료 ≠ 전체 기능 완료</strong></p>
+          <ul class="bullet-list" style="font-size: 16px;">
+            <li>백엔드 API 구현 완료 일정 중심으로만 진척도를 판단하여 UX/UI 확정 후 <strong>FE 구현·API 연동·통합 테스트 시간</strong>을 사전 확보하지 못함.</li>
+            <li><strong>대응:</strong> 핵심 필수 API 우선순위 긴급 재조정 및 데이터 규격 실시간 공유로 릴리즈 방어.</li>
+          </ul>
+        </div>
+
+        <!-- Problem 2 -->
+        <div class="card" style="gap: 14px;">
+          <div class="card-title"><span class="badge">PROBLEM 02</span> AI 파이프라인 지연 누적</div>
+          <p class="card-desc"><strong>동기식(Blocking) I/O로 인한 스레드 점유</strong></p>
+          <ul class="bullet-list" style="font-size: 16px;">
+            <li>GPT, DALL-E, Sora API를 순차적 <span class="code-tag">RestTemplate</span> 동기 호출로 처리.</li>
+            <li>외부 AI 응답 지연(Latency)이 전체 백엔드 요청 처리 서블릿 스레드를 블로킹하여 파이프라인 전반에 대기 시간이 직접 누적됨.</li>
+          </ul>
+        </div>
+
+        <!-- Problem 3 -->
+        <div class="card" style="gap: 14px;">
+          <div class="card-title"><span class="badge">PROBLEM 03</span> 테스트 안전망 부재</div>
+          <p class="card-desc"><strong>리팩토링 시 회귀 검증 한계</strong></p>
+          <ul class="bullet-list" style="font-size: 16px;">
+            <li>핵심 비즈니스 로직에 대한 단위/통합 테스트 코드가 부재하여 기능 수정이나 구조 개선 시 기존 동작의 안전성을 검증하기 어려움.</li>
+            <li>코드 변경에 대한 심리적 장벽 존재.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Transition Banner -->
+      <div class="card highlight" style="padding: 20px 28px; flex: 0 0 auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <span style="font-size: 20px; font-weight: 800; color: var(--deep-blue);">
+              🚀 Team Project Constraints ➔ Independent Refactoring Archive
+            </span>
+            <p style="font-size: 16px; color: #334155; margin-top: 6px; line-height: 1.55;">
+              팀 공용 인프라 제약에서 벗어나 <strong>1) Non-blocking 전환, 2) 장시간 작업 비동기 분리, 3) Redis 인증 격리, 4) 단위 테스트 구축, 5) 관측성 확보</strong>를 독립 레포에서 완벽히 검증했습니다.
+            </p>
+          </div>
+          <span class="code-tag" style="font-size: 15px; padding: 8px 16px;">github.com/KangWooJu/RemixLab-refactor</span>
+        </div>
+      </div>
+    </div>
+    <div class="slide-footer">
+      <span>REMIXLAB BACKEND REFACTORING CASE STUDY</span>
+      <span>03 / 12</span>
+    </div>
+  </section>
+
+  <!-- SLIDE 04: SYSTEM ARCHITECTURE & SECURITY FILTER CHAIN -->
+  <section class="slide">
+    <div class="slide-header">
+      <div class="header-left">
+        <span class="section-num">04 / ARCHITECTURE</span>
+        <h1 class="section-title">System Architecture & Security Filter Chain</h1>
+      </div>
+      <div class="slide-meta">
+        LAYERED ARCHITECTURE<br>& SECURITY LIFECYCLE
+      </div>
+    </div>
+    <div class="slide-content">
+      <div class="grid-2">
+        <!-- LEFT: Security Layer Detail -->
+        <div class="card" style="border-color: var(--border-blue); gap: 16px;">
+          <div class="card-title"><span class="badge">SECURITY LAYER</span> Spring Security Filter Chain & Request Routing</div>
+          <p class="card-desc" style="font-size: 16.5px;">
+            모든 HTTP 요청은 일차적으로 Security Chain을 거치며, 요청 목적에 따라 전용 필터가 분기 동작합니다.
+          </p>
+
+          <!-- Detailed Chain Diagram -->
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            
+            <!-- 1. All Requests -->
+            <div style="background: var(--bg-light-blue); border: 1.5px solid var(--border-blue); border-radius: 10px; padding: 16px 20px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <strong style="color: var(--deep-blue); font-size: 17.5px;">1. JwtFilter (항상 실행 / Common)</strong>
+                <span class="tech-pill">Every Request</span>
+              </div>
+              <div style="font-size: 15.5px; color: #334155; margin-top: 6px; line-height: 1.55;">
+                • 모든 인바운드 요청 헤더의 Access Token 검증 및 <span class="code-tag">SecurityContext</span>에 인증 객체 등록<br>
+                • 유효하지 않거나 만료된 토큰인 경우 즉시 Security Exception 처리
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <!-- 2. Login Flow -->
+              <div style="background: white; border: 1.5px solid var(--border-color); border-radius: 10px; padding: 16px;">
+                <div style="font-weight: 800; color: var(--primary-blue); font-size: 16.5px;">2. LoginFilter</div>
+                <span class="code-tag" style="font-size: 12.5px; margin: 6px 0; display: inline-block;">POST /api/auth/login</span>
+                <div style="font-size: 14.5px; color: #475569; line-height: 1.5;">
+                  로그인 요청 시 인증 수행 후 Access/Refresh Token 동시 발급 ➔ <strong>Refresh Token을 Redis에 저장</strong>
+                </div>
+              </div>
+
+              <!-- 3. Logout Flow -->
+              <div style="background: white; border: 1.5px solid var(--border-color); border-radius: 10px; padding: 16px;">
+                <div style="font-weight: 800; color: var(--deep-blue); font-size: 16.5px;">3. JwtLogoutFilter</div>
+                <span class="code-tag" style="font-size: 12.5px; margin: 6px 0; display: inline-block;">POST /api/auth/logout</span>
+                <div style="font-size: 14.5px; color: #475569; line-height: 1.5;">
+                  로그아웃 요청 시 <strong>Redis 상의 Refresh Token을 즉시 삭제(Invalidate)</strong>하여 토큰 재사용 원천 차단
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div style="background: var(--bg-subtle); padding: 12px 18px; border-radius: 8px; font-size: 15px; color: #334155; line-height: 1.5;">
+            💡 <strong>핵심 구조:</strong> 인증 필터 책임을 명확히 분리하여 비즈니스 컨트롤러 진입 전 보안 검증을 완결합니다.
+          </div>
+        </div>
+
+        <!-- RIGHT: Application Architecture Diagram -->
+        <div class="card highlight" style="gap: 14px;">
+          <div class="card-title"><span class="badge">APP CORE</span> 백엔드 레이어드 아키텍처 및 실행 경계</div>
+          
+          <div style="display: flex; flex-direction: column; gap: 10px; font-size: 15px;">
+            <div style="background: white; border: 1.5px solid var(--border-blue); padding: 14px 18px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+              <strong>Application Layer</strong>
+              <span style="font-size: 14.5px; color: #475569;">CreationFacade (조율) | CreationQueryService (조회)</span>
+            </div>
+            <div style="background: white; border: 1.5px solid var(--border-blue); padding: 14px 18px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+              <strong style="color: var(--primary-blue);">Non-blocking Reactive Engine</strong>
+              <span style="font-size: 14.5px; color: #475569;">WebClient (GPT / DALL-E / Sora 호출)</span>
+            </div>
+            <div style="background: #F8FAFC; border: 2px dashed var(--deep-blue); padding: 14px 18px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+              <strong style="color: var(--deep-blue);">Execution Boundary</strong>
+              <span class="code-tag">publishOn(Schedulers.boundedElastic())</span>
+            </div>
+            <div style="background: white; border: 1.5px solid var(--border-blue); padding: 14px 18px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+              <strong>Persistence Layer</strong>
+              <span style="font-size: 14.5px; color: #475569;">Spring Data JPA | QueryDSL | Redis Token Store</span>
+            </div>
+            <div style="background: white; border: 1.5px solid var(--border-blue); padding: 14px 18px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+              <strong>External Stores & Infra</strong>
+              <span style="font-size: 14.5px; color: #475569;">MySQL 8.0 | GCS (Media) | Micrometer + Prometheus</span>
+            </div>
+          </div>
+
+          <div style="font-size: 15px; color: #334155; background: white; padding: 14px 18px; border-radius: 8px; border: 1.5px solid var(--border-blue); line-height: 1.55;">
+            ⚡ <strong>경계 분리:</strong> 리액티브 Event-Loop 스레드가 Blocking JPA 작업으로 차단되지 않도록 <span class="code-tag">boundedElastic</span>으로 완전히 격리했습니다.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-footer">
+      <span>REMIXLAB BACKEND REFACTORING CASE STUDY</span>
+      <span>04 / 12</span>
+    </div>
+  </section>
+
+  <!-- SLIDE 05: CORE AI ORCHESTRATION PIPELINE -->
+  <section class="slide">
+    <div class="slide-header">
+      <div class="header-left">
+        <span class="section-num">05 / PIPELINE</span>
+        <h1 class="section-title">Core AI Orchestration Pipeline</h1>
+      </div>
+      <div class="slide-meta">
+        MULTI-MODEL CHAINING<br>& WORKFLOW
+      </div>
+    </div>
+    <div class="slide-content">
+      <div class="card highlight" style="padding: 20px 28px;">
+        <div class="card-title"><span class="badge">PIPELINE ARCHITECTURE</span> 복합 생성 워크플로우 (Multi-Stage AI Chaining)</div>
+        <p class="card-desc" style="font-size: 17.5px;">
+          단일 AI API 호출에 그치지 않고, <strong>이전 생성 결과가 다음 단계 AI 모델의 컨텍스트(프롬프트)로 연속 전달</strong>되는 파이프라인을 구축했습니다.
+        </p>
+      </div>
+
+      <!-- Main Flow -->
+      <div class="diagram-container" style="padding: 26px 28px; gap: 16px;">
+        <div style="font-size: 15px; font-weight: 800; color: var(--primary-blue); font-family: var(--font-mono);">
+          [MAIN FLOW] STORY-TO-VIDEO GENERATION CHAIN
+        </div>
+        <div class="step-flow">
+          <div class="step-node">
+            <span class="node-title">1. Prompt Input</span>
+            <span class="node-sub">사용자 초기 발상</span>
+          </div>
+          <span class="arrow-right">→</span>
+          <div class="step-node active">
+            <span class="node-title">2. GPT Plotter</span>
+            <span class="node-sub">스토리 및 N개 장면 분할</span>
+          </div>
+          <span class="arrow-right">→</span>
+          <div class="step-node active">
+            <span class="node-title">3. DALL-E Generator</span>
+            <span class="node-sub">장면별 이미지 후보 생성</span>
+          </div>
+          <span class="arrow-right">→</span>
+          <div class="step-node">
+            <span class="node-title">4. User Choice</span>
+            <span class="node-sub">대표 이미지 선택</span>
+          </div>
+          <span class="arrow-right">→</span>
+          <div class="step-node active">
+            <span class="node-title">5. Sora Async Job</span>
+            <span class="node-sub">선택 이미지 기반 영상 렌더</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Direct Flow Branches -->
+      <div class="grid-2">
+        <div class="card" style="padding: 22px 26px;">
+          <div class="card-title"><span class="badge">DIRECT 1</span> Direct Image Generation</div>
+          <p class="card-desc" style="font-size: 16.5px;">스토리 기획 없이 단일 텍스트 프롬프트로 DALL-E 이미지를 직접 생성하여 GCS에 저장하는 독립 경로</p>
+          <div style="font-family: var(--font-mono); font-size: 14.5px; color: var(--primary-blue); margin-top: 6px; font-weight: 700;">
+            User Prompt ➔ DALL-E ➔ GCS Upload ➔ Direct Response
+          </div>
+        </div>
+        <div class="card" style="padding: 22px 26px;">
+          <div class="card-title"><span class="badge">DIRECT 2</span> Direct Video Generation</div>
+          <p class="card-desc" style="font-size: 16.5px;">텍스트 프롬프트를 Sora API에 직접 비동기 렌더링 요청하여 백그라운드 워커로 수신하는 고속 경로</p>
+          <div style="font-family: var(--font-mono); font-size: 14.5px; color: var(--primary-blue); margin-top: 6px; font-weight: 700;">
+            User Prompt ➔ Sora Async Task ➔ VideoWorker Polling ➔ Completed
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-footer">
+      <span>REMIXLAB BACKEND REFACTORING CASE STUDY</span>
+      <span>05 / 12</span>
+    </div>
+  </section>
+
+  <!-- SLIDE 06: TESTING & NON-BLOCKING WEBCLIENT -->
+  <section class="slide">
+    <div class="slide-header">
+      <div class="header-left">
+        <span class="section-num">06 / REFACTORING</span>
+        <h1 class="section-title">Automated Testing Safety & Non-blocking I/O</h1>
+      </div>
+      <div class="slide-meta">
+        REGRESSION SAFETY<br>& WEBCLIENT ISOLATION
+      </div>
+    </div>
+    <div class="slide-content">
+      <div class="grid-2">
+        <!-- LEFT: Testing Net -->
+        <div class="card" style="gap: 18px;">
+          <div class="card-title"><span class="badge">TEST SAFETY</span> 리팩토링 안정성을 위한 테스트 안전망</div>
+          <p class="card-desc" style="font-size: 17px;">
+            외부 AI 및 DB 의존성을 격리하여 구조 변경 시 비즈니스 로직의 회귀(Regression)를 방지했습니다.
+          </p>
+          <ul class="bullet-list" style="font-size: 16px;">
+            <li><strong>RefreshService 단위 테스트:</strong> Redis 토큰 만료(TTL), 재발급 검증</li>
+            <li><strong>RefreshController Slice 테스트:</strong> <span class="code-tag">MockMvc</span>로 400/401 에러 검증</li>
+            <li><strong>AI Orchestration 예외 테스트:</strong> 외부 API Timeout 시 비즈니스 예외 전환</li>
+          </ul>
+          <div style="background: var(--bg-subtle); padding: 16px 20px; border-radius: 8px; font-size: 15px; color: var(--deep-blue); line-height: 1.55; margin-top: auto;">
+            🛡 <strong>핵심 의도:</strong> 단순 커버리지가 아닌 지속적인 아키텍처 리팩토링을 가능하게 하는 안전망을 확보했습니다.
+          </div>
+        </div>
+
+        <!-- RIGHT: WebClient + Reactor -->
+        <div class="card highlight" style="gap: 18px;">
+          <div class="card-title"><span class="badge">NON-BLOCKING</span> RestTemplate ➔ WebClient + Reactor</div>
+          <p class="card-desc" style="font-size: 17px;">
+            외부 AI API 대기 시간 동안 서블릿 스레드가 블로킹되는 문제를 해결하기 위해 리액티브 엔진을 도입했습니다.
+          </p>
+          <ul class="bullet-list" style="font-size: 16px;">
+            <li><strong>Non-blocking I/O:</strong> I/O 대기 시 스레드 점유 없이 이벤트 루프가 다음 작업 처리</li>
+            <li><strong>외부 API 관심사 분리:</strong> AI 통신/파싱 책임을 전담 클라이언트로 완전 격리</li>
+            <li><strong>명시적 타임아웃 & 에러 로깅:</strong> 장시간 무응답에 대한 Fallback 체계 구축</li>
+          </ul>
+          <div class="diagram-container" style="background: white; padding: 16px 20px; margin-top: auto;">
+            <div style="font-size: 14px; font-family: var(--font-mono); color: var(--primary-blue); font-weight: 800; margin-bottom: 4px;">
+              THREAD ISOLATION FLOW
+            </div>
+            <div style="font-size: 15px; color: #334155;">
+              WebClient (Non-blocking) ➔ <strong>publishOn(boundedElastic)</strong> ➔ JPA 영속화 (Blocking)
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-footer">
+      <span>REMIXLAB BACKEND REFACTORING CASE STUDY</span>
+      <span>06 / 12</span>
+    </div>
+  </section>
+
+  <!-- SLIDE 07: ASYNC VIDEO PROCESSING -->
+  <section class="slide">
+    <div class="slide-header">
+      <div class="header-left">
+        <span class="section-num">07 / REFACTORING</span>
+        <h1 class="section-title">Long-running Task Lifecycle — Async Video Processing</h1>
+      </div>
+      <div class="slide-meta">
+        STATE MACHINE<br>& BACKGROUND WORKER
+      </div>
+    </div>
+    <div class="slide-content">
+      <div class="grid-2">
+        <div class="card" style="gap: 16px;">
+          <div class="card-title"><span class="badge">PROBLEM & DECISION</span> 영상 생성 생명주기와 HTTP 요청의 분리</div>
+          <p class="card-desc" style="font-size: 17px;">
+            영상 렌더링은 수 분 이상 소요되는 대표적인 <strong>Long-running Task</strong>입니다. 이를 HTTP 요청-응답 주기에 묶어두면 커넥션 타임아웃 및 스레드 풀 고갈이 발생합니다.
+          </p>
+          <ul class="bullet-list" style="font-size: 16px;">
+            <li><strong>즉시 응답 반환:</strong> 요청 접수 시 비디오 ID와 <span class="code-tag">PENDING</span> 상태를 즉시 반환하여 클라이언트 연결 종료</li>
+            <li><strong>스케줄러 & 비동기 워커:</strong> 백그라운드에서 주기적으로 외부 Sora AI 상태를 폴링</li>
+            <li><strong>완료 시 미디어 영속화:</strong> 렌더링 완료 감지 시 영상 스트림을 다운로드하여 GCS에 업로드 후 DB 갱신</li>
+          </ul>
+        </div>
+
+        <div class="card highlight" style="gap: 14px;">
+          <div class="card-title"><span class="badge">STATE MACHINE</span> 비디오 생성 상태 전이도</div>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px 18px; border-radius: 8px; border: 1.5px solid var(--border-blue);">
+              <span class="code-tag" style="background: #FEF3C7; color: #92400E; border-color: #FCD34D;">PENDING</span>
+              <span style="font-size: 15px; color: #334155; font-weight: 500;">요청 접수 완료 및 초기 생성 대기</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px 18px; border-radius: 8px; border: 1.5px solid var(--border-blue);">
+              <span class="code-tag" style="background: #DBEAFE; color: #1E40AF; border-color: #BFDBFE;">PROCESSING</span>
+              <span style="font-size: 15px; color: #334155; font-weight: 500;">Sora 엔진에서 비디오 렌더링 진행 중</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px 18px; border-radius: 8px; border: 1.5px solid #BBF7D0;">
+              <span class="code-tag" style="background: #DCFCE7; color: #166534; border-color: #86EFAC;">COMPLETED</span>
+              <span style="font-size: 15px; color: #334155; font-weight: 500;">렌더링 완료, GCS 업로드 및 재생 URL 발급 완료</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px 18px; border-radius: 8px; border: 1.5px solid #FECACA;">
+              <span class="code-tag" style="background: #FEE2E2; color: #991B1B; border-color: #FCA5A5;">FAILED</span>
+              <span style="font-size: 15px; color: #334155; font-weight: 500;">외부 API 오류 또는 타임아웃 초과 시 실패 처리</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="diagram-container" style="padding: 22px 28px; gap: 14px;">
+        <div style="font-size: 14.5px; font-weight: 800; color: var(--primary-blue); font-family: var(--font-mono);">
+          ASYNC WORKER EXECUTION FLOW
+        </div>
+        <div class="step-flow">
+          <div class="step-node"><span class="node-title">Sora Request</span><span class="node-sub">ID 발급</span></div>
+          <span class="arrow-right">→</span>
+          <div class="step-node"><span class="node-title">Save Status</span><span class="node-sub">PENDING 저장</span></div>
+          <span class="arrow-right">→</span>
+          <div class="step-node active"><span class="node-title">VideoWorker</span><span class="node-sub">주기적 Polling</span></div>
+          <span class="arrow-right">→</span>
+          <div class="step-node active"><span class="node-title">Download & GCS</span><span class="node-sub">미디어 업로드</span></div>
+          <span class="arrow-right">→</span>
+          <div class="step-node"><span class="node-title">Update Status</span><span class="node-sub">COMPLETED</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-footer">
+      <span>REMIXLAB BACKEND REFACTORING CASE STUDY</span>
+      <span>07 / 12</span>
+    </div>
+  </section>
+
+  <!-- SLIDE 08: AUTHENTICATION STATE & REDIS -->
+  <section class="slide">
+    <div class="slide-header">
+      <div class="header-left">
+        <span class="section-num">08 / REFACTORING</span>
+        <h1 class="section-title">Separating Authentication State — Redis Token Store</h1>
+      </div>
+      <div class="slide-meta">
+        SECURITY DECOUPLING<br>& TTL LIFECYCLE
+      </div>
+    </div>
+    <div class="slide-content">
+      <div class="grid-2">
+        <div class="card" style="gap: 16px;">
+          <div class="card-title"><span class="badge">PROBLEM</span> User 도메인과 인증 토큰 상태의 강한 결합</div>
+          <p class="card-desc" style="font-size: 17px;">
+            기존에는 Refresh Token 관리 책임이 RDBMS의 User 엔티티에 강하게 결합되어 있어, 토큰 만료 처리나 로그아웃 시 불필요한 RDB I/O 및 도메인 모델 오염이 발생했습니다.
+          </p>
+          <ul class="bullet-list" style="font-size: 16px;">
+            <li>사용자 핵심 도메인 정보와 일시적인 인증 세션 상태의 관심사 혼재</li>
+            <li>만료된 토큰의 RDB 정리 배치 부담 및 명시적 무효화(Blacklisting) 복잡성</li>
+          </ul>
+        </div>
+
+        <div class="card highlight" style="gap: 16px;">
+          <div class="card-title"><span class="badge">DECISION</span> Redis 기반 독립 Refresh Token 생명주기 관리</div>
+          <ul class="bullet-list" style="font-size: 16px;">
+            <li><strong>도메인 책임 분리:</strong> User 엔티티에서 토큰 상태를 완전히 제거하고 Redis로 전담 격리</li>
+            <li><strong>TTL 기반 자동 만료:</strong> Redis Expire Time(TTL)을 활용해 만료 토큰을 배치 없이 자동 파기</li>
+            <li><strong>명시적 무효화 (Logout):</strong> 로그아웃 요청 시 Redis 키를 즉시 삭제하여 접근 차단</li>
+          </ul>
+          <div style="background: white; padding: 16px 20px; border-radius: 8px; border: 1.5px solid var(--border-blue); font-size: 15.5px; color: var(--deep-blue); line-height: 1.55;">
+            🔑 <strong>포커스:</strong> 성능 향상이 목적이 아닌, <strong>책임의 분리(Separation of Concerns)와 안전한 토큰 생명주기 제어</strong>에 집중했습니다.
+          </div>
+        </div>
+      </div>
+
+      <div class="diagram-container" style="padding: 24px 28px; gap: 14px;">
+        <div style="font-size: 14.5px; font-weight: 800; color: var(--deep-blue); font-family: var(--font-mono);">
+          AUTHENTICATION & TOKEN LIFECYCLE FLOW
+        </div>
+        <div class="step-flow">
+          <div class="step-node"><span class="node-title">1. Login Success</span><span class="node-sub">Access / Refresh 발급</span></div>
+          <span class="arrow-right">→</span>
+          <div class="step-node active"><span class="node-title">2. Store in Redis</span><span class="node-sub">Key: Token / TTL 설정</span></div>
+          <span class="arrow-right">→</span>
+          <div class="step-node"><span class="node-title">3. Reissue Request</span><span class="node-sub">Redis Lookup 검증</span></div>
+          <span class="arrow-right">→</span>
+          <div class="step-node active"><span class="node-title">4. Logout</span><span class="node-sub">Redis Key 즉시 삭제</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-footer">
+      <span>REMIXLAB BACKEND REFACTORING CASE STUDY</span>
+      <span>08 / 12</span>
+    </div>
+  </section>
+
+  <!-- SLIDE 09: ARCHITECTURAL RESPONSIBILITY -->
+  <section class="slide">
+    <div class="slide-header">
+      <div class="header-left">
+        <span class="section-num">09 / ARCHITECTURE</span>
+        <h1 class="section-title">Architectural Responsibility — Facade & Query Separation</h1>
+      </div>
+      <div class="slide-meta">
+        CLEAN ARCHITECTURE<br>& LAYERED ROLES
+      </div>
+    </div>
+    <div class="slide-content">
+      <div class="card highlight" style="padding: 20px 28px;">
+        <div class="card-title"><span class="badge">RESPONSIBILITY</span> 비대해진 Service 계층의 책임 세분화</div>
+        <p class="card-desc" style="font-size: 17.5px;">
+          단일 Service에 비즈니스 검증, 외부 AI 오케스트레이션, DB 영속화, 동적 조회가 집중되는 문제를 해결하기 위해 <strong>Facade 패턴과 CQRS 관점의 Query Service 분리</strong>를 적용했습니다.
+        </p>
+      </div>
+
+      <div class="grid-2">
+        <!-- COMMAND FLOW -->
+        <div class="card" style="gap: 12px;">
+          <div style="font-family: var(--font-mono); font-size: 15px; font-weight: 800; color: var(--primary-blue);">
+            [COMMAND FLOW] CREATION & MUTATION
+          </div>
+          <div class="diagram-container" style="background: white; border: 1.5px solid var(--border-color); padding: 18px; gap: 8px;">
+            <div class="step-node" style="padding: 10px;"><strong>Controller:</strong> 요청 수신 및 응답 매핑</div>
+            <div style="text-align: center; color: var(--primary-blue); font-weight: 900; font-size: 20px;">↓</div>
+            <div class="step-node active" style="padding: 10px;"><strong>CreationFacade:</strong> AI 오케스트레이션 흐름 조율</div>
+            <div style="text-align: center; color: var(--primary-blue); font-weight: 900; font-size: 20px;">↓</div>
+            <div class="step-node" style="padding: 10px;"><strong>Domain Service:</strong> 순수 비즈니스 룰 검증</div>
+            <div style="text-align: center; color: var(--primary-blue); font-weight: 900; font-size: 20px;">↓</div>
+            <div class="step-node" style="padding: 10px;"><strong>Persistence Facade / JPA:</strong> 영속화 처리</div>
+          </div>
+        </div>
+
+        <!-- QUERY FLOW -->
+        <div class="card" style="gap: 12px;">
+          <div style="font-family: var(--font-mono); font-size: 15px; font-weight: 800; color: var(--deep-blue);">
+            [QUERY FLOW] MULTI-DIMENSIONAL READ
+          </div>
+          <div class="diagram-container" style="background: white; border: 1.5px solid var(--border-color); padding: 18px; gap: 8px;">
+            <div class="step-node" style="padding: 10px;"><strong>Controller:</strong> 검색/조회 파라미터 수신</div>
+            <div style="text-align: center; color: var(--deep-blue); font-weight: 900; font-size: 20px;">↓</div>
+            <div class="step-node" style="padding: 10px; background: #F1F5F9;">
+              <strong>CreationQueryService:</strong> 읽기 전용 트랜잭션 (<span class="code-tag">readOnly=true</span>)
+            </div>
+            <div style="text-align: center; color: var(--deep-blue); font-weight: 900; font-size: 20px;">↓</div>
+            <div class="step-node active" style="padding: 10px; border-color: var(--deep-blue);">
+              <strong>QueryDSL Custom Repository:</strong> 동적 필터링 및 DTO 직접 프로젝션
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-footer">
+      <span>REMIXLAB BACKEND REFACTORING CASE STUDY</span>
+      <span>09 / 12</span>
+    </div>
+  </section>
+
+  <!-- SLIDE 10: OBSERVABILITY -->
+  <section class="slide">
+    <div class="slide-header">
+      <div class="header-left">
+        <span class="section-num">10 / OBSERVABILITY</span>
+        <h1 class="section-title">From Logs to Measurable Pipeline — Observability</h1>
+      </div>
+      <div class="slide-meta">
+        METRICS PIPELINE<br>& MONITORING
+      </div>
+    </div>
+    <div class="slide-content">
+      <div class="card highlight" style="padding: 20px 28px;">
+        <div class="card-title"><span class="badge">PIPELINE MONITORING</span> 단계별 레이턴시 계측 체계 구축</div>
+        <p class="card-desc" style="font-size: 17px;">
+          단순히 전체 요청의 성공/실패만 확인하는 것이 아니라, <strong>어느 AI 호출 구간이나 DB 영속성 구간에서 병목이 발생하는지 세분화하여 계측</strong>할 수 있도록 Micrometer 메트릭을 적용했습니다.
+        </p>
+      </div>
+
+      <div class="diagram-container" style="padding: 22px 28px; gap: 14px;">
+        <div style="font-size: 14.5px; font-weight: 800; color: var(--deep-blue); font-family: var(--font-mono);">
+          MEASUREMENT POINTS IN AI PIPELINE
+        </div>
+        <div class="step-flow">
+          <div class="step-node"><span class="node-title">1. Init Stage</span><span class="node-sub">Timer: init_latency</span></div>
+          <span class="arrow-right">→</span>
+          <div class="step-node active"><span class="node-title">2. AI Render</span><span class="node-sub">Timer: render_latency</span></div>
+          <span class="arrow-right">→</span>
+          <div class="step-node active"><span class="node-title">3. Persistence</span><span class="node-sub">Timer: persistence_latency</span></div>
+          <span class="arrow-right">→</span>
+          <div class="step-node"><span class="node-title">4. Response</span><span class="node-sub">Timer: total_latency</span></div>
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div class="card" style="gap: 10px;">
+          <div class="card-title"><span class="badge">COUNTER</span> 요청 및 결과 집계</div>
+          <ul class="bullet-list" style="font-size: 15.5px;">
+            <li><span class="code-tag">ai.requests.total</span>: 총 생성 시도 건수</li>
+            <li><span class="code-tag">ai.requests.success</span>: 성공 완료 수</li>
+            <li><span class="code-tag">ai.requests.failure</span>: 오류 발생 수</li>
+          </ul>
+        </div>
+        <div class="card" style="gap: 10px;">
+          <div class="card-title"><span class="badge">GAUGE</span> 시스템 부하 추적</div>
+          <ul class="bullet-list" style="font-size: 15.5px;">
+            <li><span class="code-tag">ai.requests.in_flight</span>: 실시간 동시 진행 중인 생성 태스크 수 모니터링</li>
+          </ul>
+        </div>
+        <div class="card" style="gap: 10px;">
+          <div class="card-title"><span class="badge">TAGS</span> 다차원 필터링 태그</div>
+          <ul class="bullet-list" style="font-size: 15.5px;">
+            <li><span class="code-tag">type</span>: image (plot / direct)</li>
+            <li><span class="code-tag">type</span>: video (photo_based / text_based)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="slide-footer">
+      <span>REMIXLAB BACKEND REFACTORING CASE STUDY</span>
+      <span>10 / 12</span>
+    </div>
+  </section>
+
+  <!-- SLIDE 11: TROUBLESHOOTING & BEFORE/AFTER -->
+  <section class="slide">
+    <div class="slide-header">
+      <div class="header-left">
+        <span class="section-num">11 / ARCHIVE & COMPARISON</span>
+        <h1 class="section-title">Troubleshooting Archive & Before/After Comparison</h1>
+      </div>
+      <div class="slide-meta">
+        ENGINEERING REASONING<br>& IMPACT
+      </div>
+    </div>
+    <div class="slide-content">
+      <!-- BEFORE / AFTER COMPARISON TABLE -->
+      <div class="grid-2">
+        <div class="card" style="border-color: #FECACA; background: #FFFDFD; padding: 22px 26px; gap: 14px;">
+          <div class="card-title" style="color: #991B1B;"><span class="badge" style="background: #DC2626;">BEFORE</span> 초기 팀 프로젝트 상태</div>
+          <ul class="bullet-list" style="font-size: 16px;">
+            <li><span class="code-tag">RestTemplate</span> 기반 동기식 블로킹 호출로 스레드 대기 발생</li>
+            <li>Long-running 영상 생성을 단일 HTTP 요청 안에서 동기 결합 처리</li>
+            <li>단위/통합 테스트 부재로 코드 변경 시 회귀 위험 노출</li>
+            <li>User 엔티티에 Refresh Token이 결합되어 불필요한 RDB I/O 발생</li>
+            <li>단일 Service 클래스에 비즈니스·AI·영속성·조회 책임 혼재</li>
+          </ul>
+        </div>
+
+        <div class="card highlight" style="padding: 22px 26px; gap: 14px;">
+          <div class="card-title" style="color: var(--deep-blue);"><span class="badge">AFTER</span> 독립 리팩토링 저장소 개선 결과</div>
+          <ul class="bullet-list" style="font-size: 16px;">
+            <li><span class="code-tag">WebClient</span> + Reactor 기반 Non-blocking 파이프라인 & boundedElastic 격리</li>
+            <li>상태 머신(<span class="code-tag">PENDING/PROCESSING/COMPLETED</span>) 비동기 워커 분리</li>
+            <li>도메인 단위 테스트 및 MockMvc 컨트롤러 슬라이스 테스트 안전망 구축</li>
+            <li>Redis 기반 독립 토큰 저장소 및 TTL 자동 만료/즉시 삭제 체계 확립</li>
+            <li>Facade (조율) / Domain (규칙) / Query (QueryDSL) 책임 명확화</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- TROUBLESHOOTING NOTE -->
+      <div class="card" style="padding: 20px 26px; gap: 8px;">
+        <div class="card-title"><span class="badge">GITHUB ISSUES</span> 문제 해결 과정의 5단계 자산화</div>
+        <p class="card-desc" style="font-size: 16.5px;">
+          리팩토링 과정의 고민을 <strong>1) 문제 정의 ➔ 2) 원인 분석 ➔ 3) 대안 검토 ➔ 4) 최종 해결 ➔ 5) 배운 점</strong>의 GitHub Issues 템플릿으로 기록하여 엔지니어링 히스토리를 보존했습니다.
+        </p>
+      </div>
+    </div>
+    <div class="slide-footer">
+      <span>REMIXLAB BACKEND REFACTORING CASE STUDY</span>
+      <span>11 / 12</span>
+    </div>
+  </section>
+
+  <!-- SLIDE 12: COLLABORATION RETROSPECTIVE & ENGINEERING TAKEAWAYS -->
+  <section class="slide">
+    <div class="slide-header">
+      <div class="header-left">
+        <span class="section-num">12 / RETROSPECTIVE & CLOSING</span>
+        <h1 class="section-title">Collaboration Retrospective & Engineering Takeaways</h1>
+      </div>
+      <div class="slide-meta">
+        COLLABORATION PHILOSOPHY<br>& CORE VALUES
+      </div>
+    </div>
+    <div class="slide-content">
+      <!-- Retrospective Process Flow -->
+      <div class="card highlight" style="padding: 20px 28px; gap: 12px;">
+        <div class="card-title"><span class="badge">LESSON</span> 협업을 통해 정립한 API 기능 개발 주기 (Delivery Cycle)</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 4px;">
+          <div style="background: white; padding: 14px 18px; border-radius: 8px; border: 1.5px solid var(--border-color);">
+            <div style="font-weight: 800; color: #991B1B; font-size: 15px;">AS-IS: 백엔드 중심 일정 산정</div>
+            <div style="font-size: 14.5px; color: #475569; margin-top: 4px; line-height: 1.5;">
+              기획 ➔ API 설계 ➔ 구현 ➔ 테스트 ➔ 배포 완료 = 끝? (FE 연동 병목 발생)
+            </div>
+          </div>
+          <div style="background: white; padding: 14px 18px; border-radius: 8px; border: 1.5px solid var(--primary-blue);">
+            <div style="font-weight: 800; color: var(--primary-blue); font-size: 15px;">TO-BE: 진정한 기능 완료 기준</div>
+            <div style="font-size: 14.5px; color: #334155; margin-top: 4px; line-height: 1.5;">
+              <strong>API 사전 공유 ➔ 구현 ➔ FE 연동 ➔ 통합 테스트 ➔ 피드백/수정까지가 1개 주기</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 Takeaways Grid -->
+      <div class="grid-2">
+        <div class="card" style="padding: 18px 22px; gap: 6px;">
+          <strong style="color: var(--deep-blue); font-size: 17px;">01. Architecture</strong>
+          <p style="font-size: 15px; color: #475569; line-height: 1.55;">
+            기술을 추가하기 전 I/O와 CPU 바운드 특성을 구분하고 실행 환경에 적합한 구조를 선택해야 함을 배웠습니다.
+          </p>
+        </div>
+        <div class="card" style="padding: 18px 22px; gap: 6px;">
+          <strong style="color: var(--deep-blue); font-size: 17px;">02. Async Lifecycle</strong>
+          <p style="font-size: 15px; color: #475569; line-height: 1.55;">
+            비동기 처리는 단순 라이브러리 사용이 아닌 장시간 작업의 상태 머신과 장애 복구 생명주기를 관리하는 것입니다.
+          </p>
+        </div>
+        <div class="card" style="padding: 18px 22px; gap: 6px;">
+          <strong style="color: var(--deep-blue); font-size: 17px;">03. Verification & Safety</strong>
+          <p style="font-size: 15px; color: #475569; line-height: 1.55;">
+            테스트와 메트릭은 단순 절차가 아닌, 리팩토링을 두려움 없이 지속하게 돕는 안전망임을 체감했습니다.
+          </p>
+        </div>
+        <div class="card" style="padding: 18px 22px; gap: 6px;">
+          <strong style="color: var(--deep-blue); font-size: 17px;">04. Collaboration</strong>
+          <p style="font-size: 15px; color: #475569; line-height: 1.55;">
+            백엔드 API는 코드 작성이 끝나는 시점이 아니라 클라이언트가 온전히 연동·검증했을 때 완성됩니다.
+          </p>
+        </div>
+      </div>
+
+      <div style="background: var(--bg-subtle); padding: 16px 24px; border-radius: 10px; border: 1.5px solid var(--border-color); text-align: center; font-size: 16.5px; font-weight: 800; color: var(--deep-blue);">
+        "문제를 먼저 깊이 이해하고, 왜 해당 기술과 구조가 필요한지 타당한 근거로 증명하는 백엔드 엔지니어 강우주입니다."
+      </div>
+    </div>
+    <div class="slide-footer">
+      <span>REMIXLAB BACKEND REFACTORING CASE STUDY</span>
+      <span>12 / 12</span>
+    </div>
+  </section>
+
+</body>
+</html>
